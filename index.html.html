@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cash Mint BD - Admin Panel</title>
+<style>
+:root{
+  --bg:#F4F7FB; --card:#FFFFFF; --text:#1B2430; --muted:#7C8794; --border:#E6EBF1;
+  --primary:#0FA958; --primary-d:#0B8A47; --primary-l:#E6F7EE; --danger:#E5484D; --danger-l:#FDE8E8;
+  --warn:#F59E0B; --warn-l:#FFF3D6; --info:#2F80ED; --info-l:#E8F1FE; --shadow:0 2px 10px rgba(20,40,70,.06);
+}
+body.dark{
+  --bg:#0F1620; --card:#17202C; --text:#E8EEF5; --muted:#8FA0B3; --border:#263243;
+  --primary-l:#12301F; --danger-l:#3A1B1E; --warn-l:#3A2E12; --info-l:#14263F; --shadow:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans Bengali","Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.45}
+.hidden{display:none!important}
+button{font-family:inherit}
+a{color:var(--primary)}
+.muted{color:var(--muted)}
+.pre{white-space:pre-wrap;margin:0}
+.center{display:flex;align-items:center;justify-content:center}
+.center-pad{display:flex;align-items:center;justify-content:center;padding:60px}
+.spin{width:34px;height:34px;border:4px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- login ---------- */
+.screen{min-height:100vh;padding:20px}
+.login-card{background:var(--card);border-radius:20px;box-shadow:0 10px 40px rgba(20,40,70,.12);padding:36px 30px;max-width:420px;width:100%;text-align:center}
+.logo{width:64px;height:64px;border-radius:18px;background:var(--primary);color:#fff;font-size:30px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+.login-card h1{margin:0 0 4px;font-size:22px}
+.login-card p{margin:0 0 22px;color:var(--muted)}
+.gbtn{width:100%;padding:13px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:15px;font-weight:700;cursor:pointer}
+.gbtn:hover{border-color:var(--primary)}
+.login-msg{margin-top:16px;font-size:13px;color:var(--danger);word-break:break-all}
+.setup-box{margin-top:16px;text-align:left;background:var(--warn-l);border-radius:12px;padding:12px 14px;font-size:13px}
+
+/* ---------- layout ---------- */
+.app{display:flex;min-height:100vh}
+.sidebar{width:236px;background:var(--card);border-right:1px solid var(--border);position:fixed;top:0;bottom:0;left:0;display:flex;flex-direction:column;z-index:30;transition:transform .25s}
+.brand{display:flex;align-items:center;gap:10px;padding:18px 18px 14px}
+.brand .logo{width:38px;height:38px;border-radius:11px;font-size:19px;margin:0}
+.brand b{font-size:16px}
+.brand small{display:block;color:var(--muted);font-size:11px}
+.nav{padding:6px 10px;overflow:auto;flex:1}
+.nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;color:var(--text);text-decoration:none;font-weight:600;margin-bottom:2px}
+.nav a:hover{background:var(--bg)}
+.nav a.active{background:var(--primary-l);color:var(--primary)}
+.nav .ico{width:22px;text-align:center}
+.nav .badge-n{margin-left:auto;background:var(--danger);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px}
+.side-foot{padding:12px 16px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+.main{flex:1;margin-left:236px;min-width:0}
+.topbar{display:flex;align-items:center;gap:12px;padding:12px 22px;background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
+.topbar h2{margin:0;font-size:18px;flex:1}
+.menu-btn{display:none}
+.who{font-size:12px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#content{padding:22px;max-width:1400px}
+
+/* ---------- components ---------- */
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow);margin-bottom:18px}
+.card h3{margin:0 0 4px;font-size:16px}
+.card .sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+.grid{display:grid;gap:14px}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:var(--shadow)}
+.stat .lab{color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.stat .val{font-size:26px;font-weight:800;margin:4px 0 2px}
+.stat .note{font-size:12px;color:var(--muted)}
+.stat.green .val{color:var(--primary)} .stat.red .val{color:var(--danger)} .stat.amber .val{color:var(--warn)} .stat.blue .val{color:var(--info)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 15px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--primary);color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-d);color:#fff}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.danger:hover{opacity:.9;color:#fff}
+.btn.ghost-danger{color:var(--danger)} .btn.ghost-danger:hover{border-color:var(--danger);color:var(--danger)}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:8px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.icon-btn{background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);padding:4px 8px}
+.input,select.input,textarea.input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);font-size:14px;font-family:inherit;outline:none}
+.input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-l)}
+textarea.input{min-height:80px;resize:vertical}
+.field{margin-bottom:13px}
+.field label{display:block;font-weight:700;margin-bottom:5px;font-size:13px}
+.hint{color:var(--muted);font-size:12px;margin-top:4px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.row7{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.toolbar .input{width:auto;min-width:160px}
+.toolbar .grow{flex:1;min-width:200px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+.b-green{background:var(--primary-l);color:var(--primary)} .b-red{background:var(--danger-l);color:var(--danger)}
+.b-amber{background:var(--warn-l);color:#B7791F} .b-blue{background:var(--info-l);color:var(--info)} .b-grey{background:var(--bg);color:var(--muted)}
+body.dark .b-amber{color:#F6C65B}
+.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:14px;background:var(--card)}
+table{width:100%;border-collapse:collapse;min-width:720px}
+th{background:var(--bg);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:11px 14px;white-space:nowrap}
+td{padding:11px 14px;border-top:1px solid var(--border);vertical-align:middle}
+tr:hover td{background:rgba(15,169,88,.03)}
+.u-cell{display:flex;align-items:center;gap:10px;min-width:180px}
+.av{width:34px;height:34px;border-radius:50%;background:var(--primary);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+.u-name{font-weight:700} .u-mail{font-size:12px;color:var(--muted)}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.pager{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 4px;color:var(--muted);font-size:13px}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tab{padding:8px 14px;border-radius:10px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-weight:700;font-size:13px;color:var(--muted)}
+.tab.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.tab .c{opacity:.85;margin-left:4px}
+.switch{position:relative;display:inline-block;width:42px;height:24px;flex:none}
+.switch input{opacity:0;width:0;height:0;position:absolute}
+.switch i{position:absolute;inset:0;background:#C9D2DC;border-radius:24px;transition:.2s;cursor:pointer}
+.switch i:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.switch input:checked + i{background:var(--primary)}
+.switch input:checked + i:before{transform:translateX(18px)}
+.sw-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px dashed var(--border);cursor:pointer}
+.sw-row:last-child{border-bottom:none}
+.sw-row small{display:block;color:var(--muted)}
+.bars{display:flex;gap:6px;height:170px;align-items:stretch}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;min-width:0}
+.bar-wrap{flex:1;display:flex;align-items:flex-end;width:100%}
+.bar{width:100%;border-radius:6px 6px 0 0;min-height:2px}
+.bar-val{font-size:10px;color:var(--muted);height:14px}
+.bar-lab{font-size:10px;color:var(--muted);height:16px;white-space:nowrap}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:6px 12px;font-size:13px}
+.kv b{color:var(--muted);font-weight:600}
+.list-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.list-item:last-child{border-bottom:none}
+.list-item .grow{flex:1;min-width:0}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--bg);padding:2px 7px;border-radius:6px;font-size:12px}
+.warn-box{background:var(--warn-l);border-radius:12px;padding:11px 14px;font-size:13px;margin-bottom:14px}
+.danger-box{background:var(--danger-l);border-radius:12px;padding:11px 14px;font-size:13px;margin-bottom:14px;color:var(--danger)}
+
+/* ---------- modal + toast ---------- */
+.modal-back{position:fixed;inset:0;background:rgba(10,20,35,.55);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal{background:var(--card);border-radius:18px;width:100%;max-width:480px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal.wide{max-width:780px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.modal-head h3{margin:0;font-size:17px}
+.modal-body{padding:18px 20px;overflow:auto}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+#toasts{position:fixed;right:16px;bottom:16px;z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{background:#1B2430;color:#fff;padding:11px 16px;border-radius:12px;font-weight:600;font-size:13px;opacity:0;transform:translateY(10px);transition:.25s;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.toast.show{opacity:1;transform:none}
+.toast.ok{background:var(--primary)} .toast.err{background:var(--danger)} .toast.warn{background:#B7791F}
+
+@media (max-width:980px){
+  .g4{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:1fr 1fr}
+}
+@media (max-width:820px){
+  .sidebar{transform:translateX(-100%)} .sidebar.open{transform:none;box-shadow:0 0 40px rgba(0,0,0,.3)}
+  .main{margin-left:0} .menu-btn{display:inline-flex} #content{padding:14px}
+  .g2,.g3,.row2,.row3{grid-template-columns:1fr} .row7{grid-template-columns:repeat(4,1fr)}
+  .who{display:none}
+}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+</head>
+<body>
+<div id="toasts"></div>
+
+<!-- ============ LOGIN ============ -->
+<div id="screenLogin" class="screen center hidden">
+  <div class="login-card">
+    <div class="logo">C</div>
+    <h1>Cash Mint BD</h1>
+    <p>Admin Panel &mdash; sign in with an admin Google account</p>
+    <button class="gbtn" id="btnGoogle">Continue with Google</button>
+    <div class="login-msg" id="loginMsg"></div>
+    <div class="setup-box hidden" id="setupBox"></div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="screenApp" class="app hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><div class="logo">C</div><div><b>Cash Mint BD</b><small>Admin Panel</small></div></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot"><div id="footWho"></div></div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <button class="btn sm menu-btn" data-act="toggleMenu">&#9776;</button>
+      <h2 id="pageTitle">Dashboard</h2>
+      <span class="who" id="topWho"></span>
+      <button class="btn sm" data-act="refreshAll" title="Reload data">&#8635; Refresh</button>
+      <button class="btn sm" data-act="toggleTheme" title="Dark / light">&#9788;</button>
+      <button class="btn sm ghost-danger" data-act="logout">Logout</button>
+    </header>
+    <main id="content"></main>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   1) আপনার Firebase Web কনফিগ এখানে বসান
+   Firebase Console -> Project settings -> General -> Your apps -> Web app (</>) -> Config
+   ===================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDnktj2XGaaHxOe_TDPVneK1E9qQgeRwp0",
+  authDomain: "cashmint-bd.firebaseapp.com",
+  databaseURL: "https://cashmint-bd-default-rtdb.firebaseio.com",
+  projectId: "cashmint-bd",
+  projectId: "cashmint-bd",
+  appId: "1:405255230469:web:f68ab1081444633108b86c"
+};
+
+/* ============================ helpers ============================ */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
+const fmt = n => num(n).toLocaleString('en-US');
+const taka = n => '\u09F3' + num(n).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+const fmtTime = ms => ms ? new Date(ms).toLocaleString('en-GB', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '-';
+const fmtDate = ms => ms ? new Date(ms).toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'}) : '-';
+const val = id => { const e = document.getElementById(id); return e ? e.value.trim() : ''; };
+const chk = id => { const e = document.getElementById(id); return !!(e && e.checked); };
+const intv = id => parseInt(val(id), 10);
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const initial = n => (n && String(n).trim() ? String(n).trim()[0].toUpperCase() : 'U');
+const isUrl = u => /^https?:\/\/\S+$/i.test(u);
+
+let auth, db, TS;
+const S = { user: null, users: null, wd: {}, page: 'dashboard', config: null };
+const P = {
+  users: { q: '', status: 'all', sort: 'new', page: 1, size: 25 },
+  wd: { status: 'pending', q: '', method: 'all', page: 1, size: 30 }
+};
+const pages = {};
+const ACT = {};
+const BIND = {};
+
+/* ============================ ui helpers ============================ */
+function toast(msg, type) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type || '');
+  t.textContent = msg;
+  $('#toasts').appendChild(t);
+  setTimeout(() => t.classList.add('show'), 10);
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3600);
+}
+function errToast(e) { console.error(e); toast((e && e.message) ? e.message : String(e), 'err'); }
+
+function openModal(o) {
+  closeModal();
+  const m = document.createElement('div');
+  m.className = 'modal-back';
+  m.id = 'modal';
+  m.innerHTML = '<div class="modal ' + (o.wide ? 'wide' : '') + '"><div class="modal-head"><h3>' + esc(o.title) + '</h3><button class="icon-btn" data-act="closeModal">&#10005;</button></div><div class="modal-body">' + o.body + '</div>' + (o.footer ? '<div class="modal-foot">' + o.footer + '</div>' : '') + '</div>';
+  document.body.appendChild(m);
+  m.addEventListener('mousedown', e => { if (e.target === m) { closeModal(); if (o.onClose) o.onClose(); } });
+  const x = m.querySelector('[data-act="closeModal"]');
+  if (x && o.onClose) x.addEventListener('click', o.onClose);
+  return m;
+}
+function closeModal() { const m = $('#modal'); if (m) m.remove(); }
+
+function confirmBox(message, o) {
+  o = o || {};
+  return new Promise(res => {
+    openModal({
+      title: o.title || 'Confirm',
+      body: '<p class="pre">' + esc(message) + '</p>',
+      footer: '<button class="btn" id="cb_no">Cancel</button><button class="btn ' + (o.danger ? 'danger' : 'primary') + '" id="cb_yes">' + esc(o.okText || 'Confirm') + '</button>',
+      onClose: () => res(false)
+    });
+    $('#cb_no').onclick = () => { closeModal(); res(false); };
+    $('#cb_yes').onclick = () => { closeModal(); res(true); };
+  });
+}
+function typedConfirm(message, word) {
+  return new Promise(res => {
+    openModal({
+      title: 'Danger zone',
+      body: '<div class="danger-box">' + esc(message) + '</div><div class="field"><label>Type <b>' + esc(word) + '</b> to continue</label><input class="input" id="tc_in" autocomplete="off"></div>',
+      footer: '<button class="btn" id="tc_no">Cancel</button><button class="btn danger" id="tc_yes">Delete</button>',
+      onClose: () => res(false)
+    });
+    $('#tc_no').onclick = () => { closeModal(); res(false); };
+    $('#tc_yes').onclick = () => {
+      if (val('tc_in') !== word) { toast('Text does not match', 'warn'); return; }
+      closeModal(); res(true);
+    };
+  });
+}
+
+function setContent(html) { $('#content').innerHTML = html; }
+function loading() { setContent('<div class="center-pad"><div class="spin"></div></div>'); }
+function errBox(e) { return '<div class="card"><h3>Something went wrong</h3><p class="muted">' + esc((e && e.message) || e) + '</p></div>'; }
+
+function badge(text, color) { return '<span class="badge b-' + color + '">' + esc(text) + '</span>'; }
+function statusBadge(s) {
+  if (s === 'paid' || s === 'active') return badge(s, 'green');
+  if (s === 'rejected' || s === 'banned') return badge(s, 'red');
+  if (s === 'pending') return badge(s, 'amber');
+  return badge(s || '-', 'grey');
+}
+function pager(total, page, size, act) {
+  const pages_ = Math.max(1, Math.ceil(total / size));
+  return '<div class="pager"><span>' + fmt(total) + ' items &middot; Page ' + page + ' of ' + pages_ + '</span><span class="actions">' +
+    '<button class="btn sm" data-act="' + act + '" data-d="-1" ' + (page <= 1 ? 'disabled' : '') + '>&larr; Prev</button>' +
+    '<button class="btn sm" data-act="' + act + '" data-d="1" ' + (page >= pages_ ? 'disabled' : '') + '>Next &rarr;</button></span></div>';
+}
+function downloadCSV(name, rows) {
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const csv = rows.map(r => r.map(q).join(',')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function copyText(t) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(() => toast('Copied', 'ok'), () => toast('Copy failed', 'err'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = t; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast('Copied', 'ok'); } catch (e) { toast('Copy failed', 'err'); }
+    ta.remove();
+  }
+}
+function lastDays(n) {
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
+    const s = d.getTime();
+    out.push({ start: s, end: s + 86400000, label: d.getDate() + '/' + (d.getMonth() + 1) });
+  }
+  return out;
+}
+function barChart(vals, labels, color) {
+  const max = Math.max(1, ...vals);
+  return '<div class="bars">' + vals.map((v, i) =>
+    '<div class="bar-col" title="' + esc(labels[i]) + ': ' + v + '"><div class="bar-val">' + (v || '') + '</div><div class="bar-wrap"><div class="bar" style="height:' + Math.round(v / max * 100) + '%;background:' + color + '"></div></div><div class="bar-lab">' + esc(labels[i]) + '</div></div>'
+  ).join('') + '</div>';
+}
+
+/* form field builders */
+const F = {
+  text: (id, label, v, hint, ph) => '<div class="field"><label for="' + id + '">' + label + '</label><input class="input" id="' + id + '" value="' + esc(v) + '" placeholder="' + esc(ph || '') + '">' + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</div>',
+  num: (id, label, v, hint, extra) => '<div class="field"><label for="' + id + '">' + label + '</label><input class="input" type="number" id="' + id + '" value="' + esc(v) + '" ' + (extra || '') + '>' + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</div>',
+  area: (id, label, v, hint, extra) => '<div class="field"><label for="' + id + '">' + label + '</label><textarea class="input" id="' + id + '" ' + (extra || '') + '>' + esc(v) + '</textarea>' + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</div>',
+  sw: (id, label, v, hint) => '<label class="sw-row"><span>' + label + (hint ? '<small>' + hint + '</small>' : '') + '</span><span class="switch"><input type="checkbox" id="' + id + '" ' + (v ? 'checked' : '') + '><i></i></span></label>',
+  sel: (id, label, v, opts) => '<div class="field"><label for="' + id + '">' + label + '</label><select class="input" id="' + id + '">' + opts.map(o => '<option value="' + esc(o[0]) + '" ' + (o[0] === v ? 'selected' : '') + '>' + esc(o[1]) + '</option>').join('') + '</select></div>'
+};
+
+/* ============================ admin log ============================ */
+function logAction(action, target, details) {
+  try {
+    db.ref('adminLogs').push({ action: action, target: target || '', details: details || '', by: (S.user && (S.user.email || S.user.uid)) || '', uid: S.user ? S.user.uid : '', time: TS });
+  } catch (e) { /* ignore */ }
+}
+
+/* ============================ data loaders ============================ */
+async function getUsers(force) {
+  if (!S.users || force) {
+    const snap = await db.ref('users').once('value');
+    S.users = snap.val() || {};
+  }
+  return S.users;
+}
+function usersArr() {
+  return Object.keys(S.users || {}).map(uid => Object.assign({}, S.users[uid], { uid: uid }));
+}
+async function getConfig(force) {
+  if (!S.config || force) {
+    const snap = await db.ref('config').once('value');
+    S.config = snap.val() || {};
+  }
+  return S.config;
+}
+function wdArr() {
+  return Object.keys(S.wd || {}).map(id => Object.assign({}, S.wd[id], { id: id }));
+}
+function methodLabel(w) {
+  const m = w.method === 'bkash' ? 'bKash' : w.method === 'nagad' ? 'Nagad' : 'Recharge';
+  const ops = { gp: 'Grameenphone', bl: 'Banglalink', robi: 'Robi', airtel: 'Airtel' };
+  return m + (w.method === 'recharge' && w.operator ? ' \u2022 ' + (ops[w.operator] || w.operator) : '');
+}
+
+/* ============================ boot / auth ============================ */
+function showLogin(msg) {
+  $('#screenApp').classList.add('hidden');
+  $('#screenLogin').classList.remove('hidden');
+  $('#loginMsg').textContent = msg || '';
+}
+function showApp() {
+  $('#screenLogin').classList.add('hidden');
+  $('#screenApp').classList.remove('hidden');
+  $('#topWho').textContent = S.user.email || S.user.uid;
+  $('#footWho').textContent = 'Signed in as ' + (S.user.email || S.user.uid);
+  buildNav();
+  startWithdrawListener();
+  route();
+}
+
+function boot() {
+  if (localStorage.getItem('cm_dark') === '1') document.body.classList.add('dark');
+  $('#btnGoogle').onclick = () => {
+    $('#loginMsg').textContent = '';
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch(e => {
+      if (e && e.code === 'auth/popup-blocked') { auth.signInWithRedirect(provider); return; }
+      $('#loginMsg').textContent = e.message;
+    });
+  };
+  if (JSON.stringify(FIREBASE_CONFIG).indexOf('YOUR_') !== -1) {
+    $('#screenLogin').classList.remove('hidden');
+    const b = $('#setupBox');
+    b.classList.remove('hidden');
+    b.innerHTML = '<b>Setup needed</b><br>Open this file in a text editor and paste your Firebase Web config into <span class="code">FIREBASE_CONFIG</span> (near the top of the script).';
+    $('#btnGoogle').disabled = true;
+    return;
+  }
+  firebase.initializeApp(FIREBASE_CONFIG);
+  auth = firebase.auth();
+  db = firebase.database();
+  TS = firebase.database.ServerValue.TIMESTAMP;
+
+  auth.onAuthStateChanged(async user => {
+    if (!user) { S.user = null; showLogin(); return; }
+    try {
+      const snap = await db.ref('admins/' + user.uid).once('value');
+      if (!snap.exists()) throw new Error('not admin');
+    } catch (e) {
+      const uid = user.uid;
+      await auth.signOut();
+      showLogin('This account is not an admin. Your UID: ' + uid + ' \u2014 add it in Firebase Console: Realtime Database -> admins -> ' + uid + ' = true');
+      return;
+    }
+    S.user = user;
+    showApp();
+  });
+}
+
+let wdRef = null;
+function startWithdrawListener() {
+  if (wdRef) wdRef.off();
+  wdRef = db.ref('withdraws').orderByChild('time').limitToLast(500);
+  wdRef.on('value', snap => {
+    S.wd = snap.val() || {};
+    updateBadges();
+    if (S.page === 'withdrawals' && $('#wdBody')) refreshWd();
+    if (S.page === 'dashboard' && $('#dashPending')) pages.dashboard();
+  }, e => errToast(e));
+}
+function updateBadges() {
+  const n = wdArr().filter(w => w.status === 'pending').length;
+  const el = $('#navBadge');
+  if (el) { el.textContent = n; el.classList.toggle('hidden', n === 0); }
+}
+
+/* ============================ nav + router ============================ */
+const NAV = [
+  ['dashboard', '\uD83D\uDCCA', 'Dashboard'],
+  ['users', '\uD83D\uDC65', 'Users'],
+  ['withdrawals', '\uD83D\uDCB8', 'Withdrawals'],
+  ['tasks', '\u2705', 'Tasks'],
+  ['promo', '\uD83C\uDFAB', 'Promo Codes'],
+  ['notifications', '\uD83D\uDD14', 'Notifications'],
+  ['referrals', '\uD83E\uDD1D', 'Referrals'],
+  ['control', '\u2699\uFE0F', 'App Control'],
+  ['logs', '\uD83D\uDCDC', 'Logs & Admins']
+];
+function buildNav() {
+  $('#nav').innerHTML = NAV.map(n =>
+    '<a href="#/' + n[0] + '" data-page="' + n[0] + '"><span class="ico">' + n[1] + '</span>' + n[2] + (n[0] === 'withdrawals' ? '<span class="badge-n hidden" id="navBadge">0</span>' : '') + '</a>'
+  ).join('');
+  updateBadges();
+}
+async function route() {
+  let p = (location.hash || '').replace(/^#\/?/, '') || 'dashboard';
+  if (!pages[p]) p = 'dashboard';
+  S.page = p;
+  $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.page === p));
+  const nv = NAV.filter(n => n[0] === p)[0];
+  $('#pageTitle').textContent = nv ? nv[2] : 'Dashboard';
+  $('#sidebar').classList.remove('open');
+  loading();
+  try { await pages[p](); } catch (e) { console.error(e); setContent(errBox(e)); }
+}
+window.addEventListener('hashchange', () => { if (S.user) route(); });
+
+/* ============================ DASHBOARD ============================ */
+pages.dashboard = async function () {
+  await getUsers();
+  const cfg = await getConfig();
+  const arr = usersArr();
+  const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+  const total = arr.length;
+  const banned = arr.filter(u => u.status === 'banned').length;
+  const newToday = arr.filter(u => num(u.createdAt) >= today0.getTime()).length;
+  const coins = arr.reduce((a, u) => a + num(u.coin), 0);
+  const rate = num(cfg.economy && cfg.economy.coinPerTaka) || 100;
+  const wds = wdArr();
+  const pend = wds.filter(w => w.status === 'pending');
+  const pendSum = pend.reduce((a, w) => a + num(w.amountTaka), 0);
+  const paidSum = wds.filter(w => w.status === 'paid').reduce((a, w) => a + num(w.amountTaka), 0);
+  const days = lastDays(14);
+  const labels = days.map(d => d.label);
+  const usersPerDay = days.map(d => arr.filter(u => num(u.createdAt) >= d.start && num(u.createdAt) < d.end).length);
+  const wdPerDay = days.map(d => wds.filter(w => num(w.time) >= d.start && num(w.time) < d.end).length);
+  const maint = !!(cfg.app && cfg.app.maintenance);
+  const notice = (cfg.app && cfg.app.notice) || '';
+
+  const pendList = pend.sort((a, b) => num(a.time) - num(b.time)).slice(0, 6).map(w =>
+    '<div class="list-item"><div class="grow"><b>' + esc(w.name || 'User') + '</b> <span class="muted">' + esc(methodLabel(w)) + ' &middot; ' + esc(w.number) + '</span><div class="muted" style="font-size:12px">' + fmtTime(w.time) + '</div></div>' +
+    '<b>' + taka(w.amountTaka) + '</b><div class="actions"><button class="btn sm primary" data-act="payWd" data-id="' + esc(w.id) + '">Pay</button><button class="btn sm ghost-danger" data-act="rejectWd" data-id="' + esc(w.id) + '">Reject</button></div></div>'
+  ).join('') || '<div class="empty">No pending withdrawals &#127881;</div>';
+
+  setContent(
+    '<div class="grid g4" style="margin-bottom:18px">' +
+      '<div class="stat blue"><div class="lab">Total users</div><div class="val">' + fmt(total) + '</div><div class="note">+' + newToday + ' today</div></div>' +
+      '<div class="stat green"><div class="lab">Active users</div><div class="val">' + fmt(total - banned) + '</div><div class="note">' + fmt(banned) + ' banned</div></div>' +
+      '<div class="stat amber"><div class="lab">Coins in circulation</div><div class="val">' + fmt(coins) + '</div><div class="note">&asymp; ' + taka(coins / rate) + ' liability</div></div>' +
+      '<div class="stat red" id="dashPending"><div class="lab">Pending withdrawals</div><div class="val">' + fmt(pend.length) + '</div><div class="note">' + taka(pendSum) + ' to pay</div></div>' +
+    '</div>' +
+    '<div class="grid g4" style="margin-bottom:18px">' +
+      '<div class="stat green"><div class="lab">Total paid out</div><div class="val">' + taka(paidSum) + '</div><div class="note">last 500 requests</div></div>' +
+      '<div class="stat"><div class="lab">Rejected</div><div class="val">' + fmt(wds.filter(w => w.status === 'rejected').length) + '</div><div class="note">requests</div></div>' +
+      '<div class="stat"><div class="lab">Coin rate</div><div class="val">' + fmt(rate) + '</div><div class="note">coins = ' + taka(1) + '</div></div>' +
+      '<div class="stat ' + (maint ? 'red' : 'green') + '"><div class="lab">App status</div><div class="val" style="font-size:20px">' + (maint ? 'MAINTENANCE' : 'LIVE') + '</div><div class="note">' + (maint ? 'Users are blocked' : 'Users can use the app') + '</div></div>' +
+    '</div>' +
+    '<div class="grid g2">' +
+      '<div class="card"><h3>New users (14 days)</h3><p class="sub">Daily signups</p>' + barChart(usersPerDay, labels, '#0FA958') + '</div>' +
+      '<div class="card"><h3>Withdraw requests (14 days)</h3><p class="sub">Daily count</p>' + barChart(wdPerDay, labels, '#F59E0B') + '</div>' +
+    '</div>' +
+    '<div class="grid g2">' +
+      '<div class="card"><h3>Pending withdrawals</h3><p class="sub">Oldest first &middot; <a href="#/withdrawals">open all</a></p>' + pendList + '</div>' +
+      '<div class="card"><h3>Quick controls</h3><p class="sub">Changes reach the app instantly</p>' +
+        F.sw('dashMaint', 'Maintenance mode', maint, 'Blocks all users with your maintenance message') +
+        '<div class="field" style="margin-top:14px"><label for="dashNotice">Home notice bar</label><input class="input" id="dashNotice" value="' + esc(notice) + '" placeholder="Leave empty to hide"></div>' +
+        '<button class="btn primary" data-act="quickNotice">Save notice</button></div>' +
+    '</div>'
+  );
+  const mt = $('#dashMaint');
+  if (mt) mt.onchange = async () => {
+    const want = mt.checked;
+    const ok = await confirmBox(want ? 'Turn ON maintenance? ALL users will be blocked immediately.' : 'Turn OFF maintenance?', { danger: want, okText: want ? 'Turn ON' : 'Turn OFF' });
+    if (!ok) { mt.checked = !want; return; }
+    try { await db.ref('config/app/maintenance').set(want); S.config = null; logAction('maintenance', 'config/app', String(want)); toast('Maintenance ' + (want ? 'ON' : 'OFF'), 'ok'); pages.dashboard(); } catch (e) { errToast(e); mt.checked = !want; }
+  };
+};
+ACT.quickNotice = async function () {
+  try { await db.ref('config/app/notice').set(val('dashNotice')); S.config = null; logAction('notice', 'config/app', val('dashNotice')); toast('Notice saved', 'ok'); } catch (e) { errToast(e); }
+};
+
+/* ============================ USERS ============================ */
+pages.users = async function () {
+  setContent(
+    '<div class="toolbar">' +
+      '<input class="input grow" id="uQ" placeholder="Search name, email, UID or referral code" data-bind="usersQ" value="' + esc(P.users.q) + '">' +
+      '<select class="input" data-bind="usersStatus"><option value="all">All status</option><option value="active"' + (P.users.status === 'active' ? ' selected' : '') + '>Active</option><option value="banned"' + (P.users.status === 'banned' ? ' selected' : '') + '>Banned</option></select>' +
+      '<select class="input" data-bind="usersSort">' + [['new', 'Newest'], ['old', 'Oldest'], ['coinHigh', 'Coins: high'], ['coinLow', 'Coins: low'], ['name', 'Name A-Z']].map(o => '<option value="' + o[0] + '"' + (P.users.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
+      '<button class="btn" data-act="usersCsv">Export CSV</button>' +
+    '</div><div id="usersBody"></div>'
+  );
+  await getUsers();
+  refreshUsers();
+};
+function filteredUsers() {
+  const q = P.users.q.toLowerCase();
+  let a = usersArr();
+  if (P.users.status !== 'all') a = a.filter(u => (u.status || 'active') === P.users.status);
+  if (q) a = a.filter(u => [u.name, u.email, u.uid, u.referCode].some(x => String(x || '').toLowerCase().indexOf(q) !== -1));
+  const s = P.users.sort;
+  a.sort((x, y) => s === 'new' ? num(y.createdAt) - num(x.createdAt) : s === 'old' ? num(x.createdAt) - num(y.createdAt) : s === 'coinHigh' ? num(y.coin) - num(x.coin) : s === 'coinLow' ? num(x.coin) - num(y.coin) : String(x.name || '').localeCompare(String(y.name || '')));
+  return a;
+}
+function refreshUsers() {
+  const body = $('#usersBody');
+  if (!body) return;
+  const a = filteredUsers();
+  const maxPage = Math.max(1, Math.ceil(a.length / P.users.size));
+  if (P.users.page > maxPage) P.users.page = maxPage;
+  const slice = a.slice((P.users.page - 1) * P.users.size, P.users.page * P.users.size);
+  if (!a.length) { body.innerHTML = '<div class="card empty">No users found</div>'; return; }
+  body.innerHTML = '<div class="table-wrap"><table><thead><tr><th>User</th><th>Coins</th><th>Cash</th><th>Streak</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead><tbody>' +
+    slice.map(u =>
+      '<tr><td><div class="u-cell"><div class="av">' + esc(initial(u.name)) + '</div><div><div class="u-name">' + esc(u.name || 'User') + '</div><div class="u-mail">' + esc(u.email || '') + '</div></div></div></td>' +
+      '<td><b>' + fmt(u.coin) + '</b></td><td>' + taka(u.cash) + '</td><td>' + fmt(u.streak) + '</td><td>' + statusBadge(u.status || 'active') + '</td><td>' + fmtDate(u.createdAt) + '</td>' +
+      '<td><div class="actions"><button class="btn sm" data-act="viewUser" data-uid="' + esc(u.uid) + '">View</button>' +
+      '<button class="btn sm" data-act="coinUser" data-uid="' + esc(u.uid) + '">Coins</button>' +
+      (u.status === 'banned' ? '<button class="btn sm primary" data-act="banUser" data-uid="' + esc(u.uid) + '" data-ban="0">Unban</button>' : '<button class="btn sm ghost-danger" data-act="banUser" data-uid="' + esc(u.uid) + '" data-ban="1">Ban</button>') +
+      '</div></td></tr>'
+    ).join('') + '</tbody></table></div>' + pager(a.length, P.users.page, P.users.size, 'usersPage');
+}
+BIND.usersQ = debounce(v => { P.users.q = v; P.users.page = 1; refreshUsers(); }, 200);
+BIND.usersStatus = v => { P.users.status = v; P.users.page = 1; refreshUsers(); };
+BIND.usersSort = v => { P.users.sort = v; P.users.page = 1; refreshUsers(); };
+ACT.usersPage = d => { P.users.page += parseInt(d.d, 10); refreshUsers(); };
+ACT.usersCsv = () => {
+  const rows = [['uid', 'name', 'email', 'coin', 'cash', 'status', 'streak', 'referCode', 'referredBy', 'createdAt']];
+  filteredUsers().forEach(u => rows.push([u.uid, u.name, u.email, u.coin || 0, u.cash || 0, u.status || 'active', u.streak || 0, u.referCode || '', u.referredBy || '', u.createdAt ? new Date(u.createdAt).toISOString() : '']));
+  downloadCSV('users.csv', rows);
+};
+
+async function setBan(uid, ban) {
+  const u = (S.users || {})[uid];
+  const name = u ? (u.name || u.email || uid) : uid;
+  const ok = await confirmBox((ban ? 'Ban ' : 'Unban ') + name + '?', { danger: ban, okText: ban ? 'Ban user' : 'Unban' });
+  if (!ok) return;
+  try {
+    await db.ref('users/' + uid + '/status').set(ban ? 'banned' : 'active');
+    if (S.users[uid]) S.users[uid].status = ban ? 'banned' : 'active';
+    logAction(ban ? 'ban' : 'unban', uid, name);
+    toast(ban ? 'User banned' : 'User unbanned', 'ok');
+    closeModal();
+    if (S.page === 'users') refreshUsers();
+    if (S.page === 'referrals') pages.referrals();
+  } catch (e) { errToast(e); }
+}
+ACT.banUser = d => setBan(d.uid, d.ban === '1');
+ACT.viewUser = d => openUser(d.uid);
+ACT.coinUser = d => coinModal(d.uid);
+
+async function openUser(uid) {
+  await getUsers();
+  const u0 = S.users[uid];
+  if (!u0) { toast('User not found', 'err'); return; }
+  const u = Object.assign({ uid: uid }, u0);
+  openModal({ title: 'User details', wide: true, body: '<div class="center-pad"><div class="spin"></div></div>' });
+  let hist = [], promo = {};
+  try { const h = await db.ref('history/' + uid).orderByChild('time').limitToLast(15).once('value'); hist = Object.values(h.val() || {}).sort((a, b) => num(b.time) - num(a.time)); } catch (e) { /* ignore */ }
+  try { const p = await db.ref('promoUsed/' + uid).once('value'); promo = p.val() || {}; } catch (e) { /* ignore */ }
+  const wds = wdArr().filter(w => w.uid === uid).sort((a, b) => num(b.time) - num(a.time));
+  const refs = usersArr().filter(x => x.referredBy === uid);
+  const by = u.referredBy && S.users[u.referredBy] ? S.users[u.referredBy] : null;
+
+  const wdHtml = wds.length ? wds.map(w => '<div class="list-item"><div class="grow">' + esc(methodLabel(w)) + ' &middot; ' + esc(w.number) + '<div class="muted" style="font-size:12px">' + fmtTime(w.time) + '</div></div><b>' + taka(w.amountTaka) + '</b>' + statusBadge(w.status) + '</div>').join('') : '<div class="muted">No withdrawals</div>';
+  const hiHtml = hist.length ? hist.map(h => '<div class="list-item"><div class="grow">' + esc(h.title) + '<div class="muted" style="font-size:12px">' + fmtTime(h.time) + '</div></div><b style="color:var(--primary)">+' + fmt(h.coins) + '</b></div>').join('') : '<div class="muted">No history</div>';
+  const refHtml = refs.length ? refs.map(r => '<div class="list-item"><div class="av">' + esc(initial(r.name)) + '</div><div class="grow">' + esc(r.name || 'User') + '<div class="muted" style="font-size:12px">' + esc(r.email || '') + '</div></div>' + statusBadge(r.status || 'active') + '</div>').join('') : '<div class="muted">No referrals</div>';
+  const prKeys = Object.keys(promo);
+  const prHtml = prKeys.length ? prKeys.map(k => '<span class="code" style="margin-right:6px">' + esc(k) + '</span>').join('') : '<span class="muted">None</span>';
+
+  const body =
+    '<div style="display:flex;gap:14px;align-items:center;margin-bottom:16px"><div class="av" style="width:54px;height:54px;font-size:22px">' + esc(initial(u.name)) + '</div><div class="grow"><div style="font-size:18px;font-weight:800">' + esc(u.name || 'User') + '</div><div class="muted">' + esc(u.email || '') + '</div></div>' + statusBadge(u.status || 'active') + '</div>' +
+    '<div class="kv" style="margin-bottom:16px">' +
+      '<b>UID</b><div><span class="code">' + esc(uid) + '</span> <button class="btn sm" data-act="copy" data-t="' + esc(uid) + '">Copy</button></div>' +
+      '<b>Coins</b><div><b>' + fmt(u.coin) + '</b></div><b>Cash (paid out)</b><div>' + taka(u.cash) + '</div>' +
+      '<b>Streak</b><div>' + fmt(u.streak) + ' days</div><b>Joined</b><div>' + fmtTime(u.createdAt) + '</div>' +
+      '<b>Last daily bonus</b><div>' + fmtTime(u.lastDailyBonus) + '</div><b>Referral code</b><div>' + esc(u.referCode || '-') + '</div>' +
+      '<b>Referred by</b><div>' + (by ? esc(by.name || by.email) : esc(u.referredBy || '-')) + '</div></div>' +
+    '<div class="actions" style="margin-bottom:18px"><button class="btn primary" data-act="coinUser" data-uid="' + esc(uid) + '">Adjust coins</button><button class="btn" data-act="cashUser" data-uid="' + esc(uid) + '">Set cash</button>' +
+      (u.status === 'banned' ? '<button class="btn primary" data-act="banUser" data-uid="' + esc(uid) + '" data-ban="0">Unban</button>' : '<button class="btn ghost-danger" data-act="banUser" data-uid="' + esc(uid) + '" data-ban="1">Ban user</button>') +
+      '<button class="btn ghost-danger" data-act="delUser" data-uid="' + esc(uid) + '">Delete record</button></div>' +
+    '<div class="grid g2"><div><h4 style="margin:0 0 6px">Withdrawals (' + wds.length + ')</h4>' + wdHtml + '</div><div><h4 style="margin:0 0 6px">Recent history</h4>' + hiHtml + '</div></div>' +
+    '<h4 style="margin:16px 0 6px">Referrals (' + refs.length + ')</h4>' + refHtml +
+    '<h4 style="margin:16px 0 6px">Promo codes used</h4>' + prHtml;
+  openModal({ title: 'User details', wide: true, body: body });
+};
+ACT.copy = d => copyText(d.t);
+
+function coinModal(uid) {
+  const u = S.users[uid];
+  if (!u) return;
+  openModal({
+    title: 'Adjust coins - ' + (u.name || u.email || uid),
+    body: '<div class="muted" style="margin-bottom:12px">Current balance: <b>' + fmt(u.coin) + '</b> coins</div>' +
+      F.sel('ca_mode', 'Action', 'add', [['add', 'Add coins (shown in user history)'], ['sub', 'Subtract coins'], ['set', 'Set exact balance']]) +
+      F.num('ca_amt', 'Amount (coins)', '', '', 'min="0" step="1"') + F.text('ca_reason', 'Reason / note', '', 'Shown to the user in history for "Add"'),
+    footer: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="ca_go">Apply</button>'
+  });
+  $('#ca_go').onclick = async () => {
+    const mode = val('ca_mode');
+    const amt = Math.floor(num(val('ca_amt')));
+    if (amt < 0 || (mode !== 'set' && amt <= 0)) { toast('Enter a valid amount', 'warn'); return; }
+    $('#ca_go').disabled = true;
+    try {
+      const res = await db.ref('users/' + uid + '/coin').transaction(cur => {
+        cur = num(cur);
+        let n = mode === 'add' ? cur + amt : mode === 'sub' ? cur - amt : amt;
+        if (n < 0) n = 0;
+        return n;
+      });
+      if (!res.committed) throw new Error('Could not update');
+      const nv = res.snapshot.val();
+      S.users[uid].coin = nv;
+      if (mode === 'add') await db.ref('history/' + uid).push({ type: 'admin', title: val('ca_reason') || 'Bonus from admin', coins: amt, time: TS });
+      logAction('coins_' + mode, uid, amt + (val('ca_reason') ? ' | ' + val('ca_reason') : '') + ' -> ' + nv);
+      toast('Balance is now ' + fmt(nv), 'ok');
+      closeModal();
+      if (S.page === 'users') refreshUsers();
+    } catch (e) { errToast(e); $('#ca_go').disabled = false; }
+  };
+}
+ACT.cashUser = d => {
+  const uid = d.uid; const u = S.users[uid];
+  openModal({
+    title: 'Set cash (paid out) - ' + (u.name || uid),
+    body: '<div class="muted" style="margin-bottom:12px">"Cash" shows the total money paid to this user. It is updated automatically when you mark a withdrawal as paid.</div>' + F.num('cs_amt', 'Cash (Taka)', num(u.cash), '', 'min="0" step="0.01"'),
+    footer: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="cs_go">Save</button>'
+  });
+  $('#cs_go').onclick = async () => {
+    const v = num(val('cs_amt'));
+    if (v < 0) { toast('Invalid amount', 'warn'); return; }
+    try { await db.ref('users/' + uid + '/cash').set(v); S.users[uid].cash = v; logAction('set_cash', uid, String(v)); toast('Saved', 'ok'); closeModal(); if (S.page === 'users') refreshUsers(); } catch (e) { errToast(e); }
+  };
+};
+ACT.delUser = async d => {
+  const uid = d.uid; const u = S.users[uid];
+  const ok = await typedConfirm('This permanently deletes the database record of "' + (u.name || u.email || uid) + '" (coins, streak, referral code). Their Google/Firebase login is NOT removed and they can sign up again as a new user.', 'DELETE');
+  if (!ok) return;
+  try {
+    if (u.referCode) await db.ref('referCodes/' + u.referCode).remove();
+    await db.ref('users/' + uid).remove();
+    delete S.users[uid];
+    logAction('delete_user', uid, u.email || '');
+    toast('Record deleted', 'ok');
+    closeModal();
+    if (S.page === 'users') refreshUsers();
+  } catch (e) { errToast(e); }
+};
+
+/* ============================ WITHDRAWALS ============================ */
+pages.withdrawals = async function () {
+  setContent(
+    '<div id="wdTop"></div>' +
+    '<div class="toolbar">' +
+      '<input class="input grow" placeholder="Search name, email, number, UID" data-bind="wdQ" value="' + esc(P.wd.q) + '">' +
+      '<select class="input" data-bind="wdMethod"><option value="all">All methods</option>' + [['bkash', 'bKash'], ['nagad', 'Nagad'], ['recharge', 'Recharge']].map(o => '<option value="' + o[0] + '"' + (P.wd.method === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select>' +
+      '<button class="btn" data-act="wdCsv">Export CSV</button>' +
+    '</div><div id="wdBody"></div>'
+  );
+  refreshWd();
+};
+function filteredWd() {
+  let a = wdArr();
+  if (P.wd.status !== 'all') a = a.filter(w => w.status === P.wd.status);
+  if (P.wd.method !== 'all') a = a.filter(w => w.method === P.wd.method);
+  const q = P.wd.q.toLowerCase();
+  if (q) a = a.filter(w => [w.name, w.email, w.number, w.uid, w.id].some(x => String(x || '').toLowerCase().indexOf(q) !== -1));
+  a.sort((x, y) => P.wd.status === 'pending' ? num(x.time) - num(y.time) : num(y.time) - num(x.time));
+  return a;
+}
+function refreshWd() {
+  const top = $('#wdTop'), body = $('#wdBody');
+  if (!top || !body) return;
+  const all = wdArr();
+  const cnt = s => all.filter(w => w.status === s).length;
+  const sum = s => all.filter(w => w.status === s).reduce((a, w) => a + num(w.amountTaka), 0);
+  top.innerHTML =
+    '<div class="grid g3" style="margin-bottom:14px">' +
+      '<div class="stat amber"><div class="lab">Pending</div><div class="val">' + taka(sum('pending')) + '</div><div class="note">' + cnt('pending') + ' requests</div></div>' +
+      '<div class="stat green"><div class="lab">Paid</div><div class="val">' + taka(sum('paid')) + '</div><div class="note">' + cnt('paid') + ' requests</div></div>' +
+      '<div class="stat red"><div class="lab">Rejected</div><div class="val">' + taka(sum('rejected')) + '</div><div class="note">' + cnt('rejected') + ' requests</div></div>' +
+    '</div>' +
+    '<div class="tabs">' + [['pending', 'Pending'], ['paid', 'Paid'], ['rejected', 'Rejected'], ['all', 'All']].map(t =>
+      '<div class="tab ' + (P.wd.status === t[0] ? 'active' : '') + '" data-act="wdTab" data-s="' + t[0] + '">' + t[1] + '<span class="c">' + (t[0] === 'all' ? all.length : cnt(t[0])) + '</span></div>').join('') + '</div>';
+
+  const a = filteredWd();
+  const maxPage = Math.max(1, Math.ceil(a.length / P.wd.size));
+  if (P.wd.page > maxPage) P.wd.page = maxPage;
+  const slice = a.slice((P.wd.page - 1) * P.wd.size, P.wd.page * P.wd.size);
+  if (!a.length) { body.innerHTML = '<div class="card empty">No withdrawal requests here</div>'; return; }
+  const now = Date.now();
+  body.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Requested</th><th>User</th><th>Method</th><th>Number</th><th>Amount</th><th>Coins</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
+    slice.map(w => {
+      const old = w.status === 'pending' && now - num(w.time) > 72 * 3600000;
+      return '<tr><td>' + fmtTime(w.time) + (old ? '<div style="color:var(--danger);font-size:11px;font-weight:700">&gt; 72h waiting</div>' : '') + '</td>' +
+        '<td><div class="u-name">' + esc(w.name || 'User') + '</div><div class="u-mail">' + esc(w.email || '') + '</div></td>' +
+        '<td>' + esc(methodLabel(w)) + '</td>' +
+        '<td><span class="code">' + esc(w.number) + '</span> <button class="btn sm" data-act="copy" data-t="' + esc(w.number) + '">Copy</button></td>' +
+        '<td><b>' + taka(w.amountTaka) + '</b></td><td>' + fmt(w.coins) + '</td><td>' + statusBadge(w.status) + '</td>' +
+        '<td><div class="actions">' + (w.status === 'pending'
+          ? '<button class="btn sm primary" data-act="payWd" data-id="' + esc(w.id) + '">Pay</button><button class="btn sm ghost-danger" data-act="rejectWd" data-id="' + esc(w.id) + '">Reject</button>'
+          : '<button class="btn sm" data-act="wdInfo" data-id="' + esc(w.id) + '">Details</button>') +
+        '<button class="btn sm" data-act="viewUser" data-uid="' + esc(w.uid) + '">User</button></div></td></tr>';
+    }).join('') + '</tbody></table></div>' + pager(a.length, P.wd.page, P.wd.size, 'wdPage');
+}
+BIND.wdQ = debounce(v => { P.wd.q = v; P.wd.page = 1; refreshWd(); }, 200);
+BIND.wdMethod = v => { P.wd.method = v; P.wd.page = 1; refreshWd(); };
+ACT.wdTab = d => { P.wd.status = d.s; P.wd.page = 1; refreshWd(); };
+ACT.wdPage = d => { P.wd.page += parseInt(d.d, 10); refreshWd(); };
+ACT.wdCsv = () => {
+  const rows = [['id', 'time', 'name', 'email', 'uid', 'method', 'operator', 'number', 'amountTaka', 'coins', 'status', 'trxId', 'note']];
+  filteredWd().forEach(w => rows.push([w.id, w.time ? new Date(w.time).toISOString() : '', w.name, w.email, w.uid, w.method, w.operator || '', w.number, w.amountTaka, w.coins, w.status, w.trxId || '', w.adminNote || w.rejectReason || '']));
+  downloadCSV('withdrawals.csv', rows);
+};
+ACT.wdInfo = d => {
+  const w = S.wd[d.id]; if (!w) return;
+  openModal({
+    title: 'Withdrawal details',
+    body: '<div class="kv"><b>Status</b><div>' + statusBadge(w.status) + '</div><b>User</b><div>' + esc(w.name) + ' (' + esc(w.email) + ')</div><b>Method</b><div>' + esc(methodLabel(w)) + '</div><b>Number</b><div>' + esc(w.number) + '</div><b>Amount</b><div>' + taka(w.amountTaka) + '</div><b>Coins</b><div>' + fmt(w.coins) + '</div><b>Requested</b><div>' + fmtTime(w.time) + '</div><b>Processed</b><div>' + fmtTime(w.processedAt) + ' by ' + esc(w.processedBy || '-') + '</div><b>Transaction ID</b><div>' + esc(w.trxId || '-') + '</div><b>Note</b><div>' + esc(w.adminNote || '-') + '</div>' + (w.status === 'rejected' ? '<b>Reject reason</b><div>' + esc(w.rejectReason || '-') + '</div><b>Coins refunded</b><div>' + (w.refunded ? 'Yes' : 'No') + '</div>' : '') + '<b>Request ID</b><div><span class="code">' + esc(d.id) + '</span></div></div>'
+  });
+};
+
+function wdSummary(w) {
+  const what = w.method === 'recharge' ? 'Mobile recharge' : 'Send money (Personal)';
+  return '<div class="warn-box"><b>' + esc(w.name || 'User') + '</b> &middot; ' + esc(methodLabel(w)) + '<br>' + esc(what) + ' <b>' + taka(w.amountTaka) + '</b> to <span class="code">' + esc(w.number) + '</span></div>';
+}
+ACT.payWd = d => {
+  const w = S.wd[d.id]; if (!w) return;
+  if (w.status !== 'pending') { toast('Already processed', 'warn'); return; }
+  openModal({
+    title: 'Mark as paid',
+    body: wdSummary(w) + '<div class="hint" style="margin-bottom:12px">First send the money / recharge from your own bKash, Nagad or SIM account. Then confirm here.</div>' + F.text('pw_trx', 'Transaction ID (optional)', '', '') + F.text('pw_note', 'Note (optional)', '', ''),
+    footer: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="pw_go">I have paid - Mark as paid</button>'
+  });
+  $('#pw_go').onclick = async () => {
+    $('#pw_go').disabled = true;
+    try {
+      const ok = await processWd(d.id, 'paid', { trxId: val('pw_trx'), adminNote: val('pw_note') }, false);
+      if (ok) { closeModal(); toast('Marked as paid', 'ok'); } else { $('#pw_go').disabled = false; }
+    } catch (e) { errToast(e); $('#pw_go').disabled = false; }
+  };
+};
+ACT.rejectWd = d => {
+  const w = S.wd[d.id]; if (!w) return;
+  if (w.status !== 'pending') { toast('Already processed', 'warn'); return; }
+  openModal({
+    title: 'Reject withdrawal',
+    body: wdSummary(w) + F.sel('rj_pre', 'Reason', 'Wrong number', [['Wrong number', 'Wrong number'], ['Suspicious activity', 'Suspicious activity'], ['Policy violation', 'Policy violation'], ['Other', 'Other']]) + F.text('rj_note', 'Extra note (optional)', '', '') + F.sw('rj_refund', 'Refund ' + fmt(w.coins) + ' coins to the user', true, 'Turn off only if the user cheated'),
+    footer: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn danger" id="rj_go">Reject</button>'
+  });
+  $('#rj_go').onclick = async () => {
+    $('#rj_go').disabled = true;
+    try {
+      const reason = val('rj_pre') + (val('rj_note') ? ' - ' + val('rj_note') : '');
+      const ok = await processWd(d.id, 'rejected', { rejectReason: reason }, chk('rj_refund'));
+      if (ok) { closeModal(); toast('Rejected', 'ok'); } else { $('#rj_go').disabled = false; }
+    } catch (e) { errToast(e); $('#rj_go').disabled = false; }
+  };
+};
+async function processWd(id, status, extra, refund) {
+  const w = S.wd[id];
+  if (!w) return false;
+  const sref = db.ref('withdraws/' + id);
+  const res = await sref.child('status').transaction(cur => cur === 'pending' ? status : undefined);
+  if (!res.committed) { toast('This request was already processed', 'warn'); return false; }
+  const upd = Object.assign({ processedAt: TS, processedBy: (S.user.email || S.user.uid) }, extra || {});
+  if (status === 'rejected') upd.refunded = !!refund;
+  await sref.update(upd);
+  if (status === 'paid') {
+    await db.ref('users/' + w.uid + '/cash').transaction(c => num(c) + num(w.amountTaka));
+  } else if (status === 'rejected' && refund) {
+    await db.ref('users/' + w.uid + '/coin').transaction(c => num(c) + num(w.coins));
+    await db.ref('history/' + w.uid).push({ type: 'refund', title: 'Withdraw refund (' + taka(w.amountTaka) + ')', coins: num(w.coins), time: TS });
+  }
+  logAction('withdraw_' + status, w.uid, taka(w.amountTaka) + ' ' + methodLabel(w) + ' ' + w.number + (extra && extra.trxId ? ' trx:' + extra.trxId : ''));
+  S.users = null;
+  return true;
+}
+
+/* ============================ TASKS ============================ */
+const TASK_TYPES = [['video', 'Watch Video (rewarded ad)'], ['article', 'Read Article'], ['website', 'Visit Website'], ['install', 'App Install'], ['social', 'Social (join page / channel)'], ['other', 'Other']];
+function taskTypeName(t) { const r = TASK_TYPES.filter(x => x[0] === t)[0]; return r ? r[1] : t; }
+function tasksArr() {
+  return Object.keys(S.tasks || {}).map(id => Object.assign({}, S.tasks[id], { id: id })).sort((a, b) => num(a.order) - num(b.order));
+}
+pages.tasks = async function () {
+  const snap = await db.ref('tasks').once('value');
+  S.tasks = snap.val() || {};
+  renderTasks();
+};
+function renderTasks() {
+  const a = tasksArr();
+  setContent(
+    '<div class="card"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="grow" style="flex:1;min-width:220px"><h3>Tasks</h3><p class="sub" style="margin:0">Create tasks that appear in the app\'s Tasks list. Reward is a random number between min and max.</p></div><button class="btn primary" data-act="addTask">+ Add task</button></div></div>' +
+    '<div class="warn-box"><b>Play Store / AdMob rules:</b> never reward clicks or installs of AdMob ads. "Visit Website" and "App Install" tasks must be your own links or approved partners. Keep them turned off until you have a way to verify them.</div>' +
+    (a.length ? '<div class="table-wrap"><table><thead><tr><th>#</th><th>Task</th><th>Reward</th><th>Timer</th><th>Limits</th><th>Active</th><th>Actions</th></tr></thead><tbody>' +
+      a.map(t => '<tr><td>' + fmt(t.order) + '</td><td><div class="u-name">' + esc(t.title) + '</div><div class="u-mail">' + esc(taskTypeName(t.type)) + (t.url ? ' &middot; ' + esc(t.url).slice(0, 40) : '') + '</div></td>' +
+        '<td><b>' + fmt(t.rewardMin) + (num(t.rewardMax) !== num(t.rewardMin) ? ' - ' + fmt(t.rewardMax) : '') + '</b> coins</td><td>' + (t.durationSec ? fmt(t.durationSec) + 's' : '-') + '</td>' +
+        '<td>' + (t.dailyLimit ? fmt(t.dailyLimit) + '/day' : 'no daily limit') + '<div class="u-mail">' + (t.maxCompletions ? 'max ' + fmt(t.maxCompletions) + ' per user' : 'repeatable') + '</div></td>' +
+        '<td><label class="switch"><input type="checkbox" data-act="toggleTask" data-id="' + esc(t.id) + '" ' + (t.active ? 'checked' : '') + '><i></i></label></td>' +
+        '<td><div class="actions"><button class="btn sm" data-act="editTask" data-id="' + esc(t.id) + '">Edit</button><button class="btn sm ghost-danger" data-act="delTask" data-id="' + esc(t.id) + '">Delete</button></div></td></tr>').join('') +
+      '</tbody></table></div>' : '<div class="card empty">No tasks yet. Click "Add task".</div>')
+  );
+}
+function taskHint(type) {
+  const m = {
+    video: 'Reward comes from a rewarded video ad. Set the AdMob ids in App Control -> Ads.',
+    article: 'Opens the link inside the app. The user must stay for the timer duration.',
+    website: 'Use only your own website or an approved partner. Never an AdMob ad link.',
+    install: 'The app cannot verify installs by itself. Keep this OFF unless you use a verified partner offer.',
+    social: 'Example: join your Telegram or Facebook page. Cannot be verified automatically, so keep rewards small.'
+  };
+  return m[type] || '';
+}
+function taskModal(id) {
+  const t = id ? S.tasks[id] : null;
+  const v = t || { title: '', description: '', type: 'video', rewardMin: 50, rewardMax: 100, durationSec: 30, url: '', packageName: '', dailyLimit: 5, maxCompletions: 0, order: tasksArr().length + 1, iconUrl: '', active: false };
+  openModal({
+    title: t ? 'Edit task' : 'Add task',
+    wide: true,
+    body: F.text('tk_title', 'Title', v.title, '', 'e.g. Watch Video') + F.area('tk_desc', 'Description', v.description, '', 'rows="2"') +
+      '<div class="row2">' + F.sel('tk_type', 'Type', v.type, TASK_TYPES) + F.num('tk_order', 'Order (small number shows first)', v.order, '', 'step="1"') + '</div>' +
+      '<div class="warn-box" id="tk_warn">' + esc(taskHint(v.type)) + '</div>' +
+      '<div class="row3">' + F.num('tk_min', 'Reward min (coins)', v.rewardMin, '1 - 500', 'min="1" max="500"') + F.num('tk_max', 'Reward max (coins)', v.rewardMax, '1 - 500', 'min="1" max="500"') + F.num('tk_dur', 'Timer (seconds)', v.durationSec, '0 = no timer', 'min="0"') + '</div>' +
+      F.text('tk_url', 'Link (https://...)', v.url, 'Needed for article, website, social and install') + F.text('tk_pkg', 'Android package name (install only)', v.packageName, 'e.g. com.example.app') +
+      '<div class="row2">' + F.num('tk_daily', 'Daily limit per user', v.dailyLimit, '0 = unlimited', 'min="0"') + F.num('tk_maxc', 'Max completions per user', v.maxCompletions, '0 = repeatable, 1 = one time', 'min="0"') + '</div>' +
+      F.text('tk_icon', 'Icon image URL (optional)', v.iconUrl, '') + F.sw('tk_active', 'Active (visible in app)', v.active, ''),
+    footer: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="tk_go">Save task</button>'
+  });
+  $('#tk_type').onchange = () => { $('#tk_warn').textContent = taskHint(val('tk_type')); };
+  $('#tk_go').onclick = async () => {
+    const o = {
+      title: val('tk_title'), description: val('tk_desc'), type: val('tk_type'),
+      rewardMin: Math.floor(num(val('tk_min'))), rewardMax: Math.floor(num(val('tk_max'))), durationSec: Math.max(0, Math.floor(num(val('tk_dur')))),
+      url: val('tk_url'), packageName: val('tk_pkg'), dailyLimit: Math.max(0, Math.floor(num(val('tk_daily')))), maxCompletions: Math.max(0, Math.floor(num(val('tk_maxc')))),
+      order: Math.floor(num(val('tk_order'))), iconUrl: val('tk_icon'), active: chk('tk_active')
+    };
+    if (!o.title) { toast('Title is required', 'warn'); return; }
+    if (o.rewardMin < 1 || o.rewardMax < o.rewardMin || o.rewardMax > 500) { toast('Reward must be 1-500 and max >= min', 'warn'); return; }
+    if (['article', 'website', 'social'].indexOf(o.type) !== -1 && !isUrl(o.url)) { toast('A valid https:// link is required', 'warn'); return; }
+    if (o.url && !isUrl(o.url)) { toast('Link must start with http:// or https://', 'warn'); return; }
+    if (o.type === 'install' && !o.packageName) { toast('Package name is required for install tasks', 'warn'); return; }
+    if (o.iconUrl && !isUrl(o.iconUrl)) { toast('Icon URL is invalid', 'warn'); return; }
+    $('#tk_go').disabled = true;
+    try {
+      if (t) {
+        await db.ref('tasks/' + id).update(o);
+        logAction('task_edit', id, o.title);
+      } else {
+        o.createdAt = TS;
+        const r = db.ref('tasks').push();
+        await r.set(o);
+        logAction('task_add', r.key, o.title);
+      }
+      toast('Task saved', 'ok');
+      closeModal();
+      pages.tasks();
+    } catch (e) { errToast(e); $('#tk_go').disabled = false; }
+  };
+}
+ACT.addTask = () => taskModal();
+ACT.editTask = d => taskModal(d.id);
+ACT.toggleTask = async (d, el) => {
+  try { await db.ref('tasks/' + d.id + '/active').set(el.checked); S.tasks[d.id].active = el.checked; logAction('task_toggle', d.id, String(el.checked)); toast(el.checked ? 'Task enabled' : 'Task disabled', 'ok'); } catch (e) { errToast(e); el.checked = !el.checked; }
+};
+ACT.delTask = async d => {
+  const t = S.tasks[d.id];
+  if (!(await confirmBox('Delete task "' + t.title + '"?', { danger: true, okText: 'Delete' }))) return;
+  try { await db.ref('tasks/' + d.id).remove(); logAction('task_delete', d.id, t.title); toast('Deleted', 'ok'); pages.tasks(); } catch (e) { errToast(e); }
+};
+
+/* ============================ PROMO CODES ============================ */
+pages.promo = async function () {
+  const snap = await db.ref('promoCodes').once('value');
+  S.promo = snap.val() || {};
+  renderPromo();
+};
+function renderPromo() {
+  const codes = Object.keys(S.promo || {}).sort();
+  setContent(
+    '<div class="card"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px"><h3>Promo codes</h3><p class="sub" style="margin:0">Users can use each code once. Max <b>500 coins</b> per code.</p></div><button class="btn primary" data-act="addPromo">+ New code</button></div></div>' +
+    (codes.length ? '<div class="table-wrap"><table><thead><tr><th>Code</th><th>Coins</th><th>Used</th><th>Expires</th><th>Active</th><th>Note</th><th>Actions</th></tr></thead><tbody>' +
+      codes.map(c => {
+        const p = S.promo[c];
+        const exp = num(p.expiresAt);
+        const expired = exp > 0 && exp < Date.now();
+        const full = num(p.maxUses) > 0 && num(p.used) >= num(p.maxUses);
+        return '<tr><td><span class="code" style="font-size:13px;font-weight:700">' + esc(c) + '</span></td><td><b>' + fmt(p.coins) + '</b></td>' +
+          '<td>' + fmt(p.used) + ' / ' + (num(p.maxUses) ? fmt(p.maxUses) : '&infin;') + (full ? ' ' + badge('full', 'amber') : '') + '</td>' +
+          '<td>' + (exp ? fmtDate(exp) + (expired ? ' ' + badge('expired', 'red') : '') : 'Never') + '</td>' +
+          '<td><label class="switch"><input type="checkbox" data-act="togglePromo" data-code="' + esc(c) + '" ' + (p.active ? 'checked' : '') + '><i></i></label></td>' +
+          '<td class="muted">' + esc(p.note || '') + '</td>' +
+          '<td><div class="actions"><button class="btn sm" data-act="editPromo" data-code="' + esc(c) + '">Edit</button><button class="btn sm ghost-danger" data-act="delPromo" data-code="' + esc(c) + '">Delete</button></div></td></tr>';
+      }).join('') + '</tbody></table></div>' : '<div class="card empty">No promo codes yet.</div>')
+  );
+}
+function promoModal(code) {
+  const p = code ? S.promo[code] : null;
+  const v = p || { coins: 20, maxUses: 100, expiresAt: 0, active: true, note: '' };
+  let dateVal = '';
+  if (num(v.expiresAt) > 0) { const d = new Date(v.expiresAt); dateVal = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  openModal({
+    title: p ? 'Edit code ' + code : 'New promo code',
+    body: (p ? '<div class="field"><label>Code</label><div class="code" style="font-size:15px;display:inline-block">' + esc(code) + '</div></div>' : F.text('pm_code', 'Code', '', 'Letters, numbers, - and _ (3-20 chars). Saved in capital letters.', 'e.g. WELCOME50')) +
+      '<div class="row2">' + F.num('pm_coins', 'Coins per user', v.coins, '1 - 500', 'min="1" max="500"') + F.num('pm_max', 'Max total uses', v.maxUses, '0 = unlimited', 'min="0"') + '</div>' +
+      '<div class="field"><label for="pm_exp">Expiry date</label><input class="input" type="date" id="pm_exp" value="' + dateVal + '"><div class="hint">Leave empty for no expiry. Valid until the end of that day.</div></div>' +
+      F.text('pm_note', 'Note (only you see this)', v.note, '') + F.sw('pm_active', 'Active', v.active, ''),
+    footer: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="pm_go">Save</button>'
+  });
+  $('#pm_go').onclick = async () => {
+    const coins = Math.floor(num(val('pm_coins')));
+    const maxUses = Math.max(0, Math.floor(num(val('pm_max'))));
+    if (coins < 1 || coins > 500) { toast('Coins must be 1 - 500', 'warn'); return; }
+    let expiresAt = 0;
+    if (val('pm_exp')) { expiresAt = new Date(val('pm_exp') + 'T23:59:59').getTime(); if (!isFinite(expiresAt)) { toast('Invalid date', 'warn'); return; } }
+    const data = { coins: coins, maxUses: maxUses, expiresAt: expiresAt, active: chk('pm_active'), note: val('pm_note') };
+    $('#pm_go').disabled = true;
+    try {
+      if (p) {
+        await db.ref('promoCodes/' + code).update(data);
+        logAction('promo_edit', code, JSON.stringify(data));
+      } else {
+        const c = val('pm_code').toUpperCase();
+        if (!/^[A-Z0-9_-]{3,20}$/.test(c)) { toast('Invalid code format', 'warn'); $('#pm_go').disabled = false; return; }
+        const ex = await db.ref('promoCodes/' + c).once('value');
+        if (ex.exists()) { toast('This code already exists', 'warn'); $('#pm_go').disabled = false; return; }
+        data.used = 0;
+        data.createdAt = TS;
+        await db.ref('promoCodes/' + c).set(data);
+        logAction('promo_add', c, JSON.stringify(data));
+      }
+      toast('Saved', 'ok');
+      closeModal();
+      pages.promo();
+    } catch (e) { errToast(e); $('#pm_go').disabled = false; }
+  };
+}
+ACT.addPromo = () => promoModal();
+ACT.editPromo = d => promoModal(d.code);
+ACT.togglePromo = async (d, el) => {
+  try { await db.ref('promoCodes/' + d.code + '/active').set(el.checked); S.promo[d.code].active = el.checked; logAction('promo_toggle', d.code, String(el.checked)); toast(el.checked ? 'Code enabled' : 'Code disabled', 'ok'); } catch (e) { errToast(e); el.checked = !el.checked; }
+};
+ACT.delPromo = async d => {
+  if (!(await confirmBox('Delete promo code ' + d.code + '? Users who already used it keep their coins.', { danger: true, okText: 'Delete' }))) return;
+  try { await db.ref('promoCodes/' + d.code).remove(); logAction('promo_delete', d.code, ''); toast('Deleted', 'ok'); pages.promo(); } catch (e) { errToast(e); }
+};
+
+/* ============================ NOTIFICATIONS ============================ */
+pages.notifications = async function () {
+  setContent(
+    '<div class="card"><h3>Send a notification</h3><p class="sub">All users see it in the app\'s bell. The red dot appears on Home.</p>' +
+    F.text('nt_title', 'Title', '', '', 'e.g. New feature') + F.area('nt_msg', 'Message', '', '', 'rows="3" placeholder="Write your message"') +
+    F.sel('nt_type', 'Type', 'info', [['info', 'Info (blue)'], ['reward', 'Reward (green)'], ['warning', 'Warning (orange)']]) +
+    '<button class="btn primary" data-act="sendNotif">Send to all users</button></div>' +
+    '<div class="card"><h3>Sent notifications</h3><p class="sub">Latest 50</p><div id="ntList"><div class="center-pad"><div class="spin"></div></div></div></div>'
+  );
+  await loadNotifs();
+};
+async function loadNotifs() {
+  const snap = await db.ref('notifications').orderByChild('time').limitToLast(50).once('value');
+  const o = snap.val() || {};
+  const a = Object.keys(o).map(id => Object.assign({ id: id }, o[id])).sort((x, y) => num(y.time) - num(x.time));
+  const el = $('#ntList');
+  if (!el) return;
+  el.innerHTML = a.length ? a.map(n =>
+    '<div class="list-item"><div class="grow"><b>' + esc(n.title) + '</b> ' + badge(n.type || 'info', n.type === 'reward' ? 'green' : n.type === 'warning' ? 'amber' : 'blue') + '<div>' + esc(n.message) + '</div><div class="muted" style="font-size:12px">' + fmtTime(n.time) + (n.by ? ' &middot; ' + esc(n.by) : '') + '</div></div><button class="btn sm ghost-danger" data-act="delNotif" data-id="' + esc(n.id) + '">Delete</button></div>'
+  ).join('') : '<div class="empty">Nothing sent yet</div>';
+}
+ACT.sendNotif = async () => {
+  const title = val('nt_title'), message = val('nt_msg');
+  if (!title || !message) { toast('Title and message are required', 'warn'); return; }
+  if (!(await confirmBox('Send this notification to ALL users?\n\n' + title + '\n' + message, { okText: 'Send' }))) return;
+  try {
+    await db.ref('notifications').push({ title: title, message: message, type: val('nt_type'), time: TS, by: S.user.email || '' });
+    logAction('notification', '', title);
+    toast('Sent', 'ok');
+    $('#nt_title').value = ''; $('#nt_msg').value = '';
+    await loadNotifs();
+  } catch (e) { errToast(e); }
+};
+ACT.delNotif = async d => {
+  if (!(await confirmBox('Delete this notification?', { danger: true, okText: 'Delete' }))) return;
+  try { await db.ref('notifications/' + d.id).remove(); toast('Deleted', 'ok'); await loadNotifs(); } catch (e) { errToast(e); }
+};
+
+/* ============================ REFERRALS ============================ */
+pages.referrals = async function () {
+  await getUsers();
+  const arr = usersArr();
+  const by = {};
+  arr.forEach(u => { if (u.referredBy) { (by[u.referredBy] = by[u.referredBy] || []).push(u); } });
+  const rows = Object.keys(by).map(rid => {
+    const list = by[rid];
+    const bn = list.filter(x => x.status === 'banned').length;
+    return { rid: rid, user: S.users[rid] || {}, n: list.length, banned: bn, sus: list.length >= 10 || (list.length >= 3 && bn / list.length >= 0.5) };
+  }).sort((a, b) => b.n - a.n);
+  const totalRef = rows.reduce((a, r) => a + r.n, 0);
+  setContent(
+    '<div class="grid g3" style="margin-bottom:18px"><div class="stat blue"><div class="lab">Referrers</div><div class="val">' + fmt(rows.length) + '</div></div><div class="stat green"><div class="lab">Referred users</div><div class="val">' + fmt(totalRef) + '</div></div><div class="stat red"><div class="lab">Suspicious referrers</div><div class="val">' + fmt(rows.filter(r => r.sus).length) + '</div><div class="note">10+ referrals or many banned friends</div></div></div>' +
+    (rows.length ? '<div class="table-wrap"><table><thead><tr><th>Referrer</th><th>Code</th><th>Friends</th><th>Banned friends</th><th>Flag</th><th>Actions</th></tr></thead><tbody>' +
+      rows.map(r => '<tr><td><div class="u-cell"><div class="av">' + esc(initial(r.user.name)) + '</div><div><div class="u-name">' + esc(r.user.name || 'Unknown / deleted') + '</div><div class="u-mail">' + esc(r.user.email || r.rid) + '</div></div></div></td><td><span class="code">' + esc(r.user.referCode || '-') + '</span></td><td><b>' + r.n + '</b></td><td>' + r.banned + '</td><td>' + (r.sus ? badge('check', 'red') : badge('ok', 'green')) + '</td><td><div class="actions"><button class="btn sm" data-act="refList" data-uid="' + esc(r.rid) + '">Friends</button><button class="btn sm" data-act="viewUser" data-uid="' + esc(r.rid) + '">User</button></div></td></tr>').join('') +
+      '</tbody></table></div>' : '<div class="card empty">No referrals yet</div>')
+  );
+};
+ACT.refList = d => {
+  const list = usersArr().filter(u => u.referredBy === d.uid);
+  openModal({
+    title: 'Friends referred (' + list.length + ')',
+    wide: true,
+    body: list.map(u => '<div class="list-item"><div class="av">' + esc(initial(u.name)) + '</div><div class="grow"><b>' + esc(u.name || 'User') + '</b><div class="muted" style="font-size:12px">' + esc(u.email || '') + ' &middot; joined ' + fmtDate(u.createdAt) + '</div></div>' + statusBadge(u.status || 'active') + '<button class="btn sm" data-act="viewUser" data-uid="' + esc(u.uid) + '">View</button></div>').join('') || '<div class="empty">None</div>'
+  });
+};
+
+/* ============================ APP CONTROL (CONFIG) ============================ */
+const FEATS = [
+  ['spin', 'Spin Wheel', 'Looks like gambling. Turn OFF if Play Store objects.'],
+  ['scratch', 'Scratch Card', 'Looks like gambling. Turn OFF if Play Store objects.'],
+  ['lucky', 'Lucky Box', 'Looks like gambling. Turn OFF if Play Store objects.'],
+  ['promo', 'Promo Code', ''],
+  ['calc', 'Earning Calculator', ''],
+  ['task_video', 'Task: Watch Video', 'Needs AdMob rewarded ads'],
+  ['task_article', 'Task: Read Article', ''],
+  ['task_website', 'Task: Visit Website', 'Your own / approved links only'],
+  ['task_install', 'Task: App Install', 'Needs a verified partner. Keep OFF for now.']
+];
+const GAMES = [
+  ['spin', 'Spin Wheel', 3, '2:40,5:30,10:15,20:10,50:5'],
+  ['scratch', 'Scratch Card', 3, '1:40,5:30,10:20,20:10'],
+  ['lucky', 'Lucky Box', 1, '5:50,10:30,20:15,30:5']
+];
+const TEST_ADS = {
+  appId: 'ca-app-pub-3940256099942544~3347511713',
+  rewardedUnitId: 'ca-app-pub-3940256099942544/5224354917',
+  bannerUnitId: 'ca-app-pub-3940256099942544/6300978111',
+  interstitialUnitId: 'ca-app-pub-3940256099942544/1033173712'
+};
+function parseRewards(str) {
+  const out = [];
+  const parts = String(str || '').split(',');
+  for (let i = 0; i < parts.length; i++) {
+    const t = parts[i].trim();
+    if (!t) continue;
+    const m = t.match(/^(\d+)\s*:\s*(\d+)$/);
+    if (!m) return null;
+    const c = parseInt(m[1], 10), w = parseInt(m[2], 10);
+    if (c < 1 || c > 500 || w < 1) return null;
+    out.push({ c: c, w: w });
+  }
+  return out.length ? out : null;
+}
+function rewardStats(str) {
+  const r = parseRewards(str);
+  if (!r) return 'Invalid format. Use coins:weight pairs, e.g. 2:40,5:30,10:15 (coins 1-500)';
+  const tw = r.reduce((a, x) => a + x.w, 0);
+  const avg = r.reduce((a, x) => a + x.c * x.w, 0) / tw;
+  const rate = num(S.config && S.config.economy && S.config.economy.coinPerTaka) || 100;
+  return 'Average reward: ' + avg.toFixed(2) + ' coins (about ' + taka(avg / rate) + ') per play. Chances: ' + r.map(x => x.c + ' coins ' + (x.w / tw * 100).toFixed(1) + '%').join(', ');
+}
+function cleanPacks(str, name, required) {
+  const seen = {};
+  const arr = [];
+  String(str || '').split(',').forEach(p => {
+    const n = parseInt(p.trim(), 10);
+    if (isFinite(n) && n >= 20 && !seen[n]) { seen[n] = 1; arr.push(n); }
+  });
+  arr.sort((a, b) => a - b);
+  if (required && !arr.length) throw new Error(name + ': enter at least one amount (each 20 or more), e.g. 50,100,200');
+  return arr.join(',');
+}
+
+pages.control = async function () {
+  const c = await getConfig(true);
+  const app = c.app || {}, eco = c.economy || {}, wd = c.withdraw || {}, ft = c.features || {}, gm = c.games || {}, ad = c.ads || {};
+  const st = String(eco.dailyStreak || '20,30,40,50,60,80,100').split(',').map(x => x.trim());
+  while (st.length < 7) st.push(st[st.length - 1] || '20');
+  const ops = (wd.recharge && wd.recharge.operators) || {};
+  const wm = k => wd[k] || {};
+  const on = (o, d) => (o === undefined || o === null) ? d : !!o;
+
+  let streakInputs = '<div class="row7">';
+  for (let i = 0; i < 7; i++) streakInputs += F.num('c_s' + (i + 1), 'Day ' + (i + 1), st[i], '', 'min="0" max="500"');
+  streakInputs += '</div>';
+
+  let gamesHtml = '';
+  GAMES.forEach(g => {
+    const o = gm[g[0]] || {};
+    const rew = o.rewards || g[3];
+    gamesHtml += '<h4 style="margin:6px 0 8px">' + g[1] + '</h4><div class="row2">' + F.num('c_g_' + g[0] + '_lim', 'Plays per day (per user)', o.dailyLimit !== undefined ? o.dailyLimit : g[2], '0 = unlimited', 'min="0"') +
+      '</div>' + F.area('c_g_' + g[0] + '_rew', 'Rewards (coins:weight, ...)', rew, '', 'rows="2" data-rew="g_' + g[0] + '_hint"') + '<div class="hint" id="g_' + g[0] + '_hint" style="margin-top:-8px;margin-bottom:14px">' + esc(rewardStats(rew)) + '</div>';
+  });
+
+  setContent(
+    '<div class="warn-box">Everything here is stored in Firebase <span class="code">config</span> and the app reads it live. <b>No app update is needed</b> after saving.</div>' +
+
+    '<div class="card"><h3>General</h3><p class="sub">Maintenance, updates, notice and links</p>' +
+      F.sw('c_maint', 'Maintenance mode', on(app.maintenance, false), 'Blocks every user and shows the message below') +
+      F.text('c_maintMsg', 'Maintenance message', app.maintenanceMessage || '', '') +
+      '<div class="row2">' + F.num('c_minVer', 'Minimum app version code', app.minVersionCode !== undefined ? app.minVersionCode : 1, 'Users below this see "Update Required"', 'min="0"') + F.text('c_updUrl', 'Play Store link', app.updateUrl || '', 'https://play.google.com/store/apps/details?id=...') + '</div>' +
+      F.text('c_updMsg', 'Update message', app.updateMessage || '', '') + F.text('c_notice', 'Home notice bar', app.notice || '', 'Leave empty to hide') +
+      '<div class="row2">' + F.text('c_mail', 'Support email', app.supportEmail || '', '') + F.text('c_privacy', 'Privacy Policy URL', app.privacyUrl || '', '') + '</div>' +
+      F.text('c_terms', 'Terms & Conditions URL (optional)', app.termsUrl || '', 'Empty = Privacy Policy link is used') +
+      '<button class="btn primary" data-act="saveCfg" data-sec="app">Save General</button></div>' +
+
+    '<div class="card"><h3>Economy</h3><p class="sub">Coin value and bonuses (every bonus is limited to 500 coins by the database rules)</p>' +
+      '<div class="row3">' + F.num('c_rate', 'Coins per 1 Taka', eco.coinPerTaka !== undefined ? eco.coinPerTaka : 100, 'Whole number, 1 or more', 'min="1" step="1"') + F.num('c_minw', 'Minimum withdraw shown on Home (Taka)', eco.minWithdrawTaka !== undefined ? eco.minWithdrawTaka : 20, 'Use your smallest withdraw amount', 'min="0"') + '<div></div></div>' +
+      '<div class="field"><label>7-day streak bonus (coins)</label></div>' + streakInputs +
+      '<div class="row3">' + F.num('c_welcome', 'Welcome bonus', eco.welcomeBonus !== undefined ? eco.welcomeBonus : 50, 'New users', 'min="0" max="500"') + F.num('c_refer', 'Referrer bonus', eco.referrerBonus !== undefined ? eco.referrerBonus : 100, 'Paid to the inviter', 'min="0" max="500"') + F.num('c_referred', 'Referred user bonus', eco.referredBonus !== undefined ? eco.referredBonus : 50, 'Paid to the invited friend', 'min="0" max="500"') + '</div>' +
+      '<button class="btn primary" data-act="saveCfg" data-sec="economy">Save Economy</button></div>' +
+
+    '<div class="card"><h3>Withdraw methods</h3><p class="sub">Amounts users can choose (each 20 or more, comma separated)</p>' +
+      F.text('c_wnote', 'Note shown under the button', wd.note || 'Payments are processed manually within 24-72 hours.', '') +
+      F.sw('c_bk_on', 'bKash', on(wm('bkash').enabled, true), '') + F.text('c_bk_packs', 'bKash amounts', wm('bkash').packs || '50,100,200,500', '') +
+      F.sw('c_ng_on', 'Nagad', on(wm('nagad').enabled, true), '') + F.text('c_ng_packs', 'Nagad amounts', wm('nagad').packs || '50,100,200,500', '') +
+      F.sw('c_rc_on', 'Mobile recharge', on(wm('recharge').enabled, true), '') + F.text('c_rc_packs', 'Recharge amounts', wm('recharge').packs || '20,50,100,200', '') +
+      '<div class="field" style="margin-top:8px"><label>Recharge operators</label></div>' +
+      F.sw('c_op_gp', 'Grameenphone', on(ops.gp, true), '') + F.sw('c_op_bl', 'Banglalink', on(ops.bl, true), '') + F.sw('c_op_robi', 'Robi', on(ops.robi, true), '') + F.sw('c_op_airtel', 'Airtel', on(ops.airtel, true), '') +
+      '<div style="margin-top:14px"><button class="btn primary" data-act="saveCfg" data-sec="withdraw">Save Withdraw</button></div></div>' +
+
+    '<div class="card"><h3>Features on / off</h3><p class="sub">Hidden features disappear from the Home screen immediately</p>' +
+      FEATS.map(f => F.sw('f_' + f[0], f[1], on(ft[f[0]], true), f[2])).join('') +
+      '<div style="margin-top:14px"><button class="btn primary" data-act="saveCfg" data-sec="features">Save Features</button></div></div>' +
+
+    '<div class="card"><h3>Spin / Scratch / Lucky Box</h3><p class="sub">Reward list uses <b>coins:weight</b> pairs. A bigger weight means a higher chance. Keep big rewards rare.</p>' +
+      gamesHtml + '<button class="btn primary" data-act="saveCfg" data-sec="games">Save Games</button></div>' +
+
+    '<div class="card"><h3>Ads (AdMob)</h3><p class="sub">The app will read these ids when ads are added</p>' +
+      '<div class="danger-box">Use the <b>TEST</b> ids until your app is live. Never click your own real ads - AdMob can ban your account.</div>' +
+      F.sw('a_on', 'Ads enabled', on(ad.enabled, false), '') +
+      F.text('a_app', 'AdMob App ID', ad.appId || TEST_ADS.appId, '') + F.text('a_rew', 'Rewarded ad unit ID', ad.rewardedUnitId || TEST_ADS.rewardedUnitId, '') +
+      F.text('a_ban', 'Banner ad unit ID', ad.bannerUnitId || TEST_ADS.bannerUnitId, '') + F.text('a_int', 'Interstitial ad unit ID', ad.interstitialUnitId || TEST_ADS.interstitialUnitId, '') +
+      '<div class="row3">' + F.num('a_lim', 'Rewarded videos per day (per user)', ad.dailyAdLimit !== undefined ? ad.dailyAdLimit : 10, '0 = unlimited', 'min="0"') + F.num('a_min', 'Reward min (coins)', ad.rewardMin !== undefined ? ad.rewardMin : 5, '', 'min="0" max="500"') + F.num('a_max', 'Reward max (coins)', ad.rewardMax !== undefined ? ad.rewardMax : 20, '', 'min="0" max="500"') + '</div>' +
+      '<button class="btn primary" data-act="saveCfg" data-sec="ads">Save Ads</button></div>'
+  );
+};
+
+function urlOk(u, name) {
+  if (u && !isUrl(u)) throw new Error(name + ' must start with http:// or https://');
+  return u;
+}
+function bonusV(id, name) {
+  const n = intv(id);
+  if (!isFinite(n) || n < 0 || n > 500) throw new Error(name + ' must be between 0 and 500');
+  return n;
+}
+ACT.saveCfg = async d => {
+  const sec = d.sec;
+  let path = '', data = {};
+  try {
+    if (sec === 'app') {
+      const minV = intv('c_minVer');
+      if (!isFinite(minV) || minV < 0) throw new Error('Minimum version code must be 0 or more');
+      if (val('c_mail') && val('c_mail').indexOf('@') === -1) throw new Error('Support email looks wrong');
+      path = 'config/app';
+      data = { maintenance: chk('c_maint'), maintenanceMessage: val('c_maintMsg'), minVersionCode: minV, updateUrl: urlOk(val('c_updUrl'), 'Play Store link'), updateMessage: val('c_updMsg'), notice: val('c_notice'), supportEmail: val('c_mail'), privacyUrl: urlOk(val('c_privacy'), 'Privacy Policy URL'), termsUrl: urlOk(val('c_terms'), 'Terms URL') };
+      if (data.maintenance && !(await confirmBox('Maintenance is ON. All users will be blocked right now. Continue?', { danger: true, okText: 'Save' }))) return;
+    } else if (sec === 'economy') {
+      const rate = intv('c_rate');
+      if (!isFinite(rate) || rate < 1) throw new Error('Coins per Taka must be a whole number (1 or more)');
+      const minw = num(val('c_minw'));
+      if (minw < 0) throw new Error('Minimum withdraw cannot be negative');
+      const streak = [];
+      for (let i = 1; i <= 7; i++) streak.push(bonusV('c_s' + i, 'Day ' + i + ' bonus'));
+      path = 'config/economy';
+      data = { coinPerTaka: rate, minWithdrawTaka: minw, dailyStreak: streak.join(','), welcomeBonus: bonusV('c_welcome', 'Welcome bonus'), referrerBonus: bonusV('c_refer', 'Referrer bonus'), referredBonus: bonusV('c_referred', 'Referred bonus') };
+      const old = num(S.config && S.config.economy && S.config.economy.coinPerTaka);
+      if (old && old !== rate && !(await confirmBox('You are changing the coin rate from ' + old + ' to ' + rate + '. Every user\'s coins will be worth a different amount of Taka. Continue?', { danger: true, okText: 'Change rate' }))) return;
+    } else if (sec === 'withdraw') {
+      path = 'config/withdraw';
+      data = {
+        note: val('c_wnote'),
+        'bkash/enabled': chk('c_bk_on'), 'bkash/packs': cleanPacks(val('c_bk_packs'), 'bKash', chk('c_bk_on')),
+        'nagad/enabled': chk('c_ng_on'), 'nagad/packs': cleanPacks(val('c_ng_packs'), 'Nagad', chk('c_ng_on')),
+        'recharge/enabled': chk('c_rc_on'), 'recharge/packs': cleanPacks(val('c_rc_packs'), 'Recharge', chk('c_rc_on')),
+        'recharge/operators/gp': chk('c_op_gp'), 'recharge/operators/bl': chk('c_op_bl'), 'recharge/operators/robi': chk('c_op_robi'), 'recharge/operators/airtel': chk('c_op_airtel')
+      };
+    } else if (sec === 'features') {
+      path = 'config/features';
+      FEATS.forEach(f => { data[f[0]] = chk('f_' + f[0]); });
+    } else if (sec === 'games') {
+      path = 'config/games';
+      GAMES.forEach(g => {
+        const lim = intv('c_g_' + g[0] + '_lim');
+        if (!isFinite(lim) || lim < 0) throw new Error(g[1] + ': plays per day must be 0 or more');
+        const rew = val('c_g_' + g[0] + '_rew');
+        if (!parseRewards(rew)) throw new Error(g[1] + ': rewards format is wrong. Use coins:weight, e.g. 2:40,5:30');
+        data[g[0] + '/dailyLimit'] = lim;
+        data[g[0] + '/rewards'] = rew.replace(/\s+/g, '');
+        data[g[0] + '/maxReward'] = Math.max.apply(null, parseRewards(rew).map(x => x.c));
+      });
+    } else if (sec === 'ads') {
+      const rmin = intv('a_min'), rmax = intv('a_max'), lim = intv('a_lim');
+      if (!isFinite(rmin) || !isFinite(rmax) || rmin < 0 || rmax < rmin || rmax > 500) throw new Error('Reward must be 0-500 and max must be at least min');
+      if (!isFinite(lim) || lim < 0) throw new Error('Daily limit must be 0 or more');
+      path = 'config/ads';
+      data = { enabled: chk('a_on'), appId: val('a_app'), rewardedUnitId: val('a_rew'), bannerUnitId: val('a_ban'), interstitialUnitId: val('a_int'), dailyAdLimit: lim, rewardMin: rmin, rewardMax: rmax };
+    } else { return; }
+
+    await db.ref(path).update(data);
+    S.config = null;
+    logAction('config_' + sec, path, JSON.stringify(data).slice(0, 300));
+    toast('Saved. The app uses the new values now.', 'ok');
+  } catch (e) { errToast(e); }
+};
+
+/* ============================ LOGS & ADMINS ============================ */
+pages.logs = async function () {
+  await getUsers();
+  const res = await Promise.all([db.ref('adminLogs').orderByChild('time').limitToLast(100).once('value'), db.ref('admins').once('value')]);
+  const lo = res[0].val() || {};
+  const ao = res[1].val() || {};
+  const logs = Object.keys(lo).map(id => lo[id]).sort((a, b) => num(b.time) - num(a.time));
+  const admins = Object.keys(ao);
+  setContent(
+    '<div class="card"><h3>Admins</h3><p class="sub">Only these accounts can open this panel. To add or remove an admin, edit <span class="code">admins</span> in Firebase Console -> Realtime Database (UID = true).</p>' +
+      (admins.map(uid => {
+        const u = S.users[uid];
+        return '<div class="list-item"><div class="av">' + esc(initial(u ? u.name : 'A')) + '</div><div class="grow"><b>' + esc(u ? (u.name || u.email) : 'Admin') + '</b>' + (uid === S.user.uid ? ' ' + badge('you', 'green') : '') + '<div class="muted" style="font-size:12px"><span class="code">' + esc(uid) + '</span></div></div></div>';
+      }).join('') || '<div class="empty">No admins found</div>') + '</div>' +
+    '<div class="card"><h3>Admin activity log</h3><p class="sub">Latest 100 actions</p>' +
+      (logs.length ? '<div class="table-wrap"><table><thead><tr><th>Time</th><th>Admin</th><th>Action</th><th>Target</th><th>Details</th></tr></thead><tbody>' +
+        logs.map(l => '<tr><td style="white-space:nowrap">' + fmtTime(l.time) + '</td><td>' + esc(l.by) + '</td><td>' + badge(l.action, /ban|delete|reject|maintenance/.test(l.action || '') ? 'red' : /paid|add|unban/.test(l.action || '') ? 'green' : 'blue') + '</td><td><span class="code">' + esc(String(l.target || '').slice(0, 28)) + '</span></td><td class="muted" style="max-width:380px;word-break:break-word">' + esc(l.details) + '</td></tr>').join('') +
+        '</tbody></table></div>' : '<div class="empty">No actions logged yet</div>') + '</div>'
+  );
+};
+
+/* ============================ global wiring ============================ */
+ACT.closeModal = () => closeModal();
+ACT.toggleMenu = () => $('#sidebar').classList.toggle('open');
+ACT.toggleTheme = () => { document.body.classList.toggle('dark'); localStorage.setItem('cm_dark', document.body.classList.contains('dark') ? '1' : '0'); };
+ACT.refreshAll = () => { S.users = null; S.config = null; route(); toast('Reloading data...', 'ok'); };
+ACT.logout = async () => { if (wdRef) wdRef.off(); await auth.signOut(); };
+
+document.addEventListener('click', e => {
+  const el = e.target.closest ? e.target.closest('[data-act]') : null;
+  if (!el) return;
+  const fn = ACT[el.dataset.act];
+  if (!fn) return;
+  try {
+    const r = fn(el.dataset, el);
+    if (r && typeof r.catch === 'function') r.catch(errToast);
+  } catch (err) { errToast(err); }
+});
+['input', 'change'].forEach(ev => document.addEventListener(ev, e => {
+  const t = e.target;
+  if (!t || !t.dataset) return;
+  if (t.dataset.bind && BIND[t.dataset.bind]) BIND[t.dataset.bind](t.value, t);
+  if (t.dataset.rew) { const h = document.getElementById(t.dataset.rew); if (h) h.textContent = rewardStats(t.value); }
+}));
+
+boot();
+
+</script>
+</body>
+</html>
