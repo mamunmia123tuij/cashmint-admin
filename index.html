@@ -211,6 +211,7 @@ const FIREBASE_CONFIG = {
   authDomain: "cashmint-bd.firebaseapp.com",
   databaseURL: "https://cashmint-bd-default-rtdb.firebaseio.com",
   projectId: "cashmint-bd",
+  projectId: "cashmint-bd",
   appId: "1:405255230469:web:f68ab1081444633108b86c"
 };
 
@@ -1263,6 +1264,7 @@ ACT.saveCfg = async d => {
         if (!parseRewards(rew)) throw new Error(g[1] + ': rewards format is wrong. Use coins:weight, e.g. 2:40,5:30');
         data[g[0] + '/dailyLimit'] = lim;
         data[g[0] + '/rewards'] = rew.replace(/\s+/g, '');
+        data[g[0] + '/maxReward'] = Math.max.apply(null, parseRewards(rew).map(x => x.c));
       });
     } else if (sec === 'ads') {
       const rmin = intv('a_min'), rmax = intv('a_max'), lim = intv('a_lim');
