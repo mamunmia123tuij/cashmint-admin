@@ -405,6 +405,7 @@ function showApp() {
   $('#footWho').textContent = 'Signed in as ' + (S.user.email || S.user.uid);
   buildNav();
   startWithdrawListener();
+  startSubsListener();
   route();
 }
 
@@ -462,6 +463,9 @@ function updateBadges() {
   const n = wdArr().filter(w => w.status === 'pending').length;
   const el = $('#navBadge');
   if (el) { el.textContent = n; el.classList.toggle('hidden', n === 0); }
+  const m = S.pendSubs || 0;
+  const el2 = $('#navBadge2');
+  if (el2) { el2.textContent = m; el2.classList.toggle('hidden', m === 0); }
 }
 
 /* ============================ nav + router ============================ */
@@ -470,15 +474,17 @@ const NAV = [
   ['users', '\uD83D\uDC65', 'Users'],
   ['withdrawals', '\uD83D\uDCB8', 'Withdrawals'],
   ['tasks', '\u2705', 'Tasks'],
+  ['submissions', '\uD83D\uDCC4', 'Task Reviews'],
   ['promo', '\uD83C\uDFAB', 'Promo Codes'],
   ['notifications', '\uD83D\uDD14', 'Notifications'],
   ['referrals', '\uD83E\uDD1D', 'Referrals'],
+  ['storage', '\u2601\uFE0F', 'Storage'],
   ['control', '\u2699\uFE0F', 'App Control'],
   ['logs', '\uD83D\uDCDC', 'Logs & Admins']
 ];
 function buildNav() {
   $('#nav').innerHTML = NAV.map(n =>
-    '<a href="#/' + n[0] + '" data-page="' + n[0] + '"><span class="ico">' + n[1] + '</span>' + n[2] + (n[0] === 'withdrawals' ? '<span class="badge-n hidden" id="navBadge">0</span>' : '') + '</a>'
+    '<a href="#/' + n[0] + '" data-page="' + n[0] + '"><span class="ico">' + n[1] + '</span>' + n[2] + (n[0] === 'withdrawals' ? '<span class="badge-n hidden" id="navBadge">0</span>' : '') + (n[0] === 'submissions' ? '<span class="badge-n hidden" id="navBadge2">0</span>' : '') + '</a>'
   ).join('');
   updateBadges();
 }
@@ -856,76 +862,183 @@ async function processWd(id, status, extra, refund) {
   return true;
 }
 
+/* ============================ CLOUDINARY HELPERS ============================ */
+function thumb(url, w, h) {
+  if (!url || String(url).indexOf('/upload/') === -1) return url || '';
+  return String(url).replace('/upload/', '/upload/w_' + w + (h ? ',h_' + h + ',c_fill' : ',c_limit') + ',q_auto,f_auto/');
+}
+async function getCloud() {
+  const c = await getConfig();
+  const a = c.cloudinary && c.cloudinary.active;
+  return (a && a.cloudName && a.uploadPreset) ? a : null;
+}
+function compressImage(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type)) { reject(new Error('Please choose an image file')); return; }
+    if (file.size > 15 * 1024 * 1024) { reject(new Error('Image is too large (max 15 MB)')); return; }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const sc = Math.min(1, maxDim / Math.max(w, h));
+      w = Math.max(1, Math.round(w * sc)); h = Math.max(1, Math.round(h * sc));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => b ? resolve(b) : reject(new Error('Could not process the image')), 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('This file is not a valid image')); };
+    img.src = url;
+  });
+}
+async function uploadImage(file, sub) {
+  const acc = await getCloud();
+  if (!acc) throw new Error('Cloudinary is not set up yet. Open the Storage page and add an account.');
+  const blob = await compressImage(file, 1280, 0.85);
+  const fd = new FormData();
+  fd.append('file', blob, 'upload.jpg');
+  fd.append('upload_preset', acc.uploadPreset);
+  const folder = (acc.folder || '') + (sub ? (acc.folder ? '/' : '') + sub : '');
+  if (folder) fd.append('folder', folder);
+  let res, j = {};
+  try {
+    res = await fetch('https://api.cloudinary.com/v1_1/' + encodeURIComponent(acc.cloudName) + '/image/upload', { method: 'POST', body: fd });
+    j = await res.json().catch(() => ({}));
+  } catch (e) { throw new Error('Network error while uploading: ' + e.message); }
+  if (!res.ok || !j.secure_url) {
+    const msg = (j.error && j.error.message) || ('HTTP ' + res.status);
+    const limit = /limit|quota|exceed|rate|credit|usage/i.test(msg) || res.status === 420 || res.status === 429;
+    throw new Error('Upload failed: ' + msg + (limit ? ' - the free limit of "' + (acc.name || acc.cloudName) + '" may be finished. Open Storage and switch to another account.' : ''));
+  }
+  return j.secure_url;
+}
+
 /* ============================ TASKS ============================ */
-const TASK_TYPES = [['video', 'Watch Video (rewarded ad)'], ['article', 'Read Article'], ['website', 'Visit Website'], ['install', 'App Install'], ['social', 'Social (join page / channel)'], ['other', 'Other']];
-function taskTypeName(t) { const r = TASK_TYPES.filter(x => x[0] === t)[0]; return r ? r[1] : t; }
+const TASK_CATS = [['video', 'Watch Video'], ['article', 'Read Article'], ['website', 'Visit Website'], ['install', 'App Install'], ['social', 'Social'], ['other', 'Other']];
+const TASK_MODES = [['timer', 'Timer task - reward is given automatically after the timer'], ['proof', 'Proof task - user uploads a screenshot and you approve it']];
+P.tasks = { q: '', cat: 'all', status: 'all' };
+function catName(c) { const r = TASK_CATS.filter(x => x[0] === c)[0]; return r ? r[1] : c; }
 function tasksArr() {
   return Object.keys(S.tasks || {}).map(id => Object.assign({}, S.tasks[id], { id: id })).sort((a, b) => num(a.order) - num(b.order));
+}
+function taskState(t) {
+  const now = Date.now();
+  if (num(t.expiresAt) > 0 && num(t.expiresAt) < now) return 'expired';
+  if (num(t.slots) > 0 && num(t.taken) >= num(t.slots)) return 'full';
+  return t.active ? 'active' : 'inactive';
 }
 pages.tasks = async function () {
   const snap = await db.ref('tasks').once('value');
   S.tasks = snap.val() || {};
+  S.pendByTask = {};
+  try {
+    const ps = await db.ref('taskSubmissions').orderByChild('status').equalTo('pending').once('value');
+    const o = ps.val() || {};
+    Object.keys(o).forEach(id => { const t = o[id].taskId; S.pendByTask[t] = (S.pendByTask[t] || 0) + 1; });
+  } catch (e) { /* ignore */ }
+  setContent(
+    '<div class="toolbar">' +
+      '<input class="input grow" placeholder="Search tasks" data-bind="taskQ" value="' + esc(P.tasks.q) + '">' +
+      '<select class="input" data-bind="taskCat"><option value="all">All categories</option>' + TASK_CATS.map(c => '<option value="' + c[0] + '"' + (P.tasks.cat === c[0] ? ' selected' : '') + '>' + c[1] + '</option>').join('') + '</select>' +
+      '<select class="input" data-bind="taskStatus">' + [['all', 'All status'], ['active', 'Active'], ['inactive', 'Inactive'], ['full', 'Full'], ['expired', 'Expired']].map(c => '<option value="' + c[0] + '"' + (P.tasks.status === c[0] ? ' selected' : '') + '>' + c[1] + '</option>').join('') + '</select>' +
+      '<button class="btn primary" data-act="addTask">+ Add task</button>' +
+    '</div>' +
+    '<div class="warn-box"><b>Play Store / AdMob rules:</b> never reward clicks or installs of AdMob ads. "Visit Website" and "App Install" tasks must use your own links or approved partners.</div>' +
+    '<div id="taskBody"></div>'
+  );
   renderTasks();
 };
 function renderTasks() {
-  const a = tasksArr();
-  setContent(
-    '<div class="card"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="grow" style="flex:1;min-width:220px"><h3>Tasks</h3><p class="sub" style="margin:0">Create tasks that appear in the app\'s Tasks list. Reward is a random number between min and max.</p></div><button class="btn primary" data-act="addTask">+ Add task</button></div></div>' +
-    '<div class="warn-box"><b>Play Store / AdMob rules:</b> never reward clicks or installs of AdMob ads. "Visit Website" and "App Install" tasks must be your own links or approved partners. Keep them turned off until you have a way to verify them.</div>' +
-    (a.length ? '<div class="table-wrap"><table><thead><tr><th>#</th><th>Task</th><th>Reward</th><th>Timer</th><th>Limits</th><th>Active</th><th>Actions</th></tr></thead><tbody>' +
-      a.map(t => '<tr><td>' + fmt(t.order) + '</td><td><div class="u-name">' + esc(t.title) + '</div><div class="u-mail">' + esc(taskTypeName(t.type)) + (t.url ? ' &middot; ' + esc(t.url).slice(0, 40) : '') + '</div></td>' +
-        '<td><b>' + fmt(t.rewardMin) + (num(t.rewardMax) !== num(t.rewardMin) ? ' - ' + fmt(t.rewardMax) : '') + '</b> coins</td><td>' + (t.durationSec ? fmt(t.durationSec) + 's' : '-') + '</td>' +
-        '<td>' + (t.dailyLimit ? fmt(t.dailyLimit) + '/day' : 'no daily limit') + '<div class="u-mail">' + (t.maxCompletions ? 'max ' + fmt(t.maxCompletions) + ' per user' : 'repeatable') + '</div></td>' +
+  const body = $('#taskBody');
+  if (!body) return;
+  const q = P.tasks.q.toLowerCase();
+  const a = tasksArr().filter(t => (P.tasks.cat === 'all' || t.category === P.tasks.cat) && (P.tasks.status === 'all' || taskState(t) === P.tasks.status) && (!q || String(t.title || '').toLowerCase().indexOf(q) !== -1));
+  if (!a.length) { body.innerHTML = '<div class="card empty">No tasks here. Click "+ Add task".</div>'; return; }
+  body.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Task</th><th>Reward</th><th>Slots</th><th>Limits</th><th>Expires</th><th>Reviews</th><th>Active</th><th>Actions</th></tr></thead><tbody>' +
+    a.map(t => {
+      const st = taskState(t);
+      const pend = S.pendByTask[t.id] || 0;
+      const slots = num(t.slots);
+      const pct = slots > 0 ? Math.min(100, Math.round(num(t.taken) / slots * 100)) : 0;
+      return '<tr><td><div class="u-cell">' + (t.imageUrl ? '<img src="' + esc(thumb(t.imageUrl, 120, 120)) + '" style="width:46px;height:46px;border-radius:10px;object-fit:cover;flex:none">' : '<div class="av" style="border-radius:10px;width:46px;height:46px">' + esc(initial(t.title)) + '</div>') +
+        '<div><div class="u-name">' + esc(t.title) + (t.featured ? ' ' + badge('hot', 'red') : '') + '</div><div class="u-mail">' + esc(catName(t.category)) + ' &middot; ' + (t.mode === 'proof' ? 'Proof' : 'Timer ' + fmt(t.durationSec) + 's') + '</div></div></div></td>' +
+        '<td><b>' + fmt(t.rewardMin) + (num(t.rewardMax) !== num(t.rewardMin) ? ' - ' + fmt(t.rewardMax) : '') + '</b> coins</td>' +
+        '<td>' + (slots > 0 ? '<div>' + fmt(t.taken) + ' / ' + fmt(slots) + (st === 'full' ? ' ' + badge('full', 'amber') : '') + '</div><div style="height:6px;background:var(--bg);border-radius:4px;margin-top:4px;min-width:90px"><div style="height:6px;width:' + pct + '%;background:var(--primary);border-radius:4px"></div></div>' : fmt(t.taken) + ' done') + '</td>' +
+        '<td>' + (num(t.dailyLimit) ? fmt(t.dailyLimit) + '/day' : 'no daily limit') + '<div class="u-mail">' + (num(t.maxCompletions) ? 'max ' + fmt(t.maxCompletions) + ' per user' : 'repeatable') + '</div></td>' +
+        '<td>' + (num(t.expiresAt) ? fmtDate(t.expiresAt) + (st === 'expired' ? ' ' + badge('expired', 'red') : '') : 'Never') + '</td>' +
+        '<td>' + (t.mode === 'proof' ? (pend ? '<a href="#/submissions">' + badge(pend + ' pending', 'amber') + '</a>' : '<span class="muted">0 pending</span>') : '-') + '</td>' +
         '<td><label class="switch"><input type="checkbox" data-act="toggleTask" data-id="' + esc(t.id) + '" ' + (t.active ? 'checked' : '') + '><i></i></label></td>' +
-        '<td><div class="actions"><button class="btn sm" data-act="editTask" data-id="' + esc(t.id) + '">Edit</button><button class="btn sm ghost-danger" data-act="delTask" data-id="' + esc(t.id) + '">Delete</button></div></td></tr>').join('') +
-      '</tbody></table></div>' : '<div class="card empty">No tasks yet. Click "Add task".</div>')
-  );
+        '<td><div class="actions"><button class="btn sm" data-act="editTask" data-id="' + esc(t.id) + '">Edit</button><button class="btn sm" data-act="prevTask" data-id="' + esc(t.id) + '">Preview</button><button class="btn sm" data-act="dupTask" data-id="' + esc(t.id) + '">Copy</button><button class="btn sm ghost-danger" data-act="delTask" data-id="' + esc(t.id) + '">Delete</button></div></td></tr>';
+    }).join('') + '</tbody></table></div>';
 }
-function taskHint(type) {
-  const m = {
-    video: 'Reward comes from a rewarded video ad. Set the AdMob ids in App Control -> Ads.',
-    article: 'Opens the link inside the app. The user must stay for the timer duration.',
-    website: 'Use only your own website or an approved partner. Never an AdMob ad link.',
-    install: 'The app cannot verify installs by itself. Keep this OFF unless you use a verified partner offer.',
-    social: 'Example: join your Telegram or Facebook page. Cannot be verified automatically, so keep rewards small.'
-  };
-  return m[type] || '';
-}
-function taskModal(id) {
+BIND.taskQ = debounce(v => { P.tasks.q = v; renderTasks(); }, 200);
+BIND.taskCat = v => { P.tasks.cat = v; renderTasks(); };
+BIND.taskStatus = v => { P.tasks.status = v; renderTasks(); };
+
+function taskModal(id, src) {
   const t = id ? S.tasks[id] : null;
-  const v = t || { title: '', description: '', type: 'video', rewardMin: 50, rewardMax: 100, durationSec: 30, url: '', packageName: '', dailyLimit: 5, maxCompletions: 0, order: tasksArr().length + 1, iconUrl: '', active: false };
+  const v = Object.assign({ title: '', description: '', steps: '', category: 'article', mode: 'timer', imageUrl: '', url: '', durationSec: 30, proofHint: '', rewardMin: 10, rewardMax: 20, dailyLimit: 1, maxCompletions: 1, slots: 0, expiresAt: 0, featured: false, order: tasksArr().length + 1, active: false }, t || src || {});
+  let dateVal = '';
+  if (num(v.expiresAt) > 0) { const d = new Date(v.expiresAt); dateVal = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   openModal({
-    title: t ? 'Edit task' : 'Add task',
+    title: t ? 'Edit task' : (src ? 'Copy of task' : 'Add task'),
     wide: true,
-    body: F.text('tk_title', 'Title', v.title, '', 'e.g. Watch Video') + F.area('tk_desc', 'Description', v.description, '', 'rows="2"') +
-      '<div class="row2">' + F.sel('tk_type', 'Type', v.type, TASK_TYPES) + F.num('tk_order', 'Order (small number shows first)', v.order, '', 'step="1"') + '</div>' +
-      '<div class="warn-box" id="tk_warn">' + esc(taskHint(v.type)) + '</div>' +
-      '<div class="row3">' + F.num('tk_min', 'Reward min (coins)', v.rewardMin, '1 - 500', 'min="1" max="500"') + F.num('tk_max', 'Reward max (coins)', v.rewardMax, '1 - 500', 'min="1" max="500"') + F.num('tk_dur', 'Timer (seconds)', v.durationSec, '0 = no timer', 'min="0"') + '</div>' +
-      F.text('tk_url', 'Link (https://...)', v.url, 'Needed for article, website, social and install') + F.text('tk_pkg', 'Android package name (install only)', v.packageName, 'e.g. com.example.app') +
-      '<div class="row2">' + F.num('tk_daily', 'Daily limit per user', v.dailyLimit, '0 = unlimited', 'min="0"') + F.num('tk_maxc', 'Max completions per user', v.maxCompletions, '0 = repeatable, 1 = one time', 'min="0"') + '</div>' +
-      F.text('tk_icon', 'Icon image URL (optional)', v.iconUrl, '') + F.sw('tk_active', 'Active (visible in app)', v.active, ''),
+    body:
+      F.text('tk_title', 'Job title', v.title, '', 'e.g. Join our Telegram channel') +
+      F.area('tk_desc', 'Description', v.description, 'Short explanation shown to the user', 'rows="3"') +
+      F.area('tk_steps', 'Steps (one per line)', v.steps, 'Shown as numbered steps: 1, 2, 3...', 'rows="4"') +
+      '<div class="field"><label>Picture</label><div style="display:flex;gap:12px;align-items:center"><img id="tk_prev" src="' + esc(thumb(v.imageUrl, 160, 160)) + '" style="width:84px;height:84px;border-radius:14px;object-fit:cover;background:var(--bg);' + (v.imageUrl ? '' : 'visibility:hidden') + '"><div style="flex:1"><input type="file" id="tk_file" accept="image/*" class="input"><div class="hint" id="tk_up_msg">Upload a picture (saved on Cloudinary) or paste a link below.</div></div></div>' +
+      '<input class="input" id="tk_img" style="margin-top:8px" placeholder="https://... (picture link)" value="' + esc(v.imageUrl) + '"></div>' +
+      '<div class="row2">' + F.sel('tk_cat', 'Category', v.category, TASK_CATS) + F.sel('tk_mode', 'How is it completed?', v.mode, TASK_MODES) + '</div>' +
+      F.text('tk_url', 'Task link (https://...)', v.url, 'The page the user must open (article, website, channel, app link...)') +
+      '<div id="tk_timer_box">' + F.num('tk_dur', 'Timer (seconds)', v.durationSec, 'The user can claim the reward only after this time (server-checked). 5 or more.', 'min="0"') + '</div>' +
+      '<div id="tk_proof_box">' + F.area('tk_hint', 'What proof should the user upload?', v.proofHint, 'e.g. "Screenshot showing you joined the channel with your username visible"', 'rows="2"') + '</div>' +
+      '<div class="row3">' + F.num('tk_min', 'Reward min (coins)', v.rewardMin, '1 - 500', 'min="1" max="500"') + F.num('tk_max', 'Reward max (coins)', v.rewardMax, 'Proof tasks pay the max by default', 'min="1" max="500"') + F.num('tk_order', 'Order', v.order, 'Small number first', 'step="1"') + '</div>' +
+      '<div class="row3">' + F.num('tk_daily', 'Per user per day', v.dailyLimit, '0 = unlimited', 'min="0"') + F.num('tk_maxc', 'Per user in total', v.maxCompletions, '0 = repeatable, 1 = one time', 'min="0"') + F.num('tk_slots', 'Total slots (all users)', v.slots, '0 = unlimited. Task closes when full.', 'min="0"') + '</div>' +
+      '<div class="field"><label for="tk_exp">Expiry date</label><input class="input" type="date" id="tk_exp" value="' + dateVal + '"><div class="hint">Leave empty for no expiry.</div></div>' +
+      F.sw('tk_feat', 'Featured (shown first with a "Hot" tag)', v.featured, '') + F.sw('tk_active', 'Active (visible in the app)', v.active, ''),
     footer: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="tk_go">Save task</button>'
   });
-  $('#tk_type').onchange = () => { $('#tk_warn').textContent = taskHint(val('tk_type')); };
+  const syncMode = () => { const m = val('tk_mode'); $('#tk_timer_box').style.display = m === 'timer' ? '' : 'none'; $('#tk_proof_box').style.display = m === 'proof' ? '' : 'none'; };
+  const syncPrev = () => { const u = val('tk_img'); const p = $('#tk_prev'); p.src = thumb(u, 160, 160); p.style.visibility = u ? 'visible' : 'hidden'; };
+  $('#tk_mode').onchange = syncMode;
+  $('#tk_img').oninput = syncPrev;
+  syncMode();
+  $('#tk_file').onchange = async () => {
+    const f = $('#tk_file').files[0];
+    if (!f) return;
+    const msg = $('#tk_up_msg');
+    msg.textContent = 'Uploading...';
+    $('#tk_go').disabled = true;
+    try { const url = await uploadImage(f, 'tasks'); $('#tk_img').value = url; syncPrev(); msg.textContent = 'Uploaded. The picture is ready.'; }
+    catch (e) { msg.textContent = e.message; toast(e.message, 'err'); }
+    $('#tk_go').disabled = false;
+  };
   $('#tk_go').onclick = async () => {
     const o = {
-      title: val('tk_title'), description: val('tk_desc'), type: val('tk_type'),
-      rewardMin: Math.floor(num(val('tk_min'))), rewardMax: Math.floor(num(val('tk_max'))), durationSec: Math.max(0, Math.floor(num(val('tk_dur')))),
-      url: val('tk_url'), packageName: val('tk_pkg'), dailyLimit: Math.max(0, Math.floor(num(val('tk_daily')))), maxCompletions: Math.max(0, Math.floor(num(val('tk_maxc')))),
-      order: Math.floor(num(val('tk_order'))), iconUrl: val('tk_icon'), active: chk('tk_active')
+      title: val('tk_title'), description: val('tk_desc'), steps: val('tk_steps'), imageUrl: val('tk_img'), category: val('tk_cat'), mode: val('tk_mode'), url: val('tk_url'),
+      durationSec: val('tk_mode') === 'timer' ? Math.max(0, Math.floor(num(val('tk_dur')))) : 0, proofHint: val('tk_mode') === 'proof' ? val('tk_hint') : '',
+      rewardMin: Math.floor(num(val('tk_min'))), rewardMax: Math.floor(num(val('tk_max'))), order: Math.floor(num(val('tk_order'))),
+      dailyLimit: Math.max(0, Math.floor(num(val('tk_daily')))), maxCompletions: Math.max(0, Math.floor(num(val('tk_maxc')))), slots: Math.max(0, Math.floor(num(val('tk_slots')))),
+      expiresAt: 0, featured: chk('tk_feat'), active: chk('tk_active')
     };
-    if (!o.title) { toast('Title is required', 'warn'); return; }
-    if (o.rewardMin < 1 || o.rewardMax < o.rewardMin || o.rewardMax > 500) { toast('Reward must be 1-500 and max >= min', 'warn'); return; }
-    if (['article', 'website', 'social'].indexOf(o.type) !== -1 && !isUrl(o.url)) { toast('A valid https:// link is required', 'warn'); return; }
-    if (o.url && !isUrl(o.url)) { toast('Link must start with http:// or https://', 'warn'); return; }
-    if (o.type === 'install' && !o.packageName) { toast('Package name is required for install tasks', 'warn'); return; }
-    if (o.iconUrl && !isUrl(o.iconUrl)) { toast('Icon URL is invalid', 'warn'); return; }
+    if (val('tk_exp')) { o.expiresAt = new Date(val('tk_exp') + 'T23:59:59').getTime(); if (!isFinite(o.expiresAt)) { toast('Invalid date', 'warn'); return; } }
+    if (!o.title) { toast('Job title is required', 'warn'); return; }
+    if (o.rewardMin < 1 || o.rewardMax < o.rewardMin || o.rewardMax > 500) { toast('Reward must be 1-500 and max must be at least min', 'warn'); return; }
+    if (o.url && !isUrl(o.url)) { toast('Task link must start with http:// or https://', 'warn'); return; }
+    if (o.imageUrl && !isUrl(o.imageUrl)) { toast('Picture link is invalid', 'warn'); return; }
+    if (o.mode === 'timer' && o.durationSec < 5) { toast('Timer must be at least 5 seconds', 'warn'); return; }
+    if (o.mode === 'timer' && ['article', 'website', 'social'].indexOf(o.category) !== -1 && !o.url) { toast('Add the task link for this category', 'warn'); return; }
+    if (o.mode === 'proof' && !o.proofHint) { toast('Tell users what proof to upload', 'warn'); return; }
+    if (o.category === 'video') { toast('Watch Video tasks need AdMob (not set up yet). Choose another category.', 'warn'); return; }
     $('#tk_go').disabled = true;
     try {
       if (t) {
         await db.ref('tasks/' + id).update(o);
         logAction('task_edit', id, o.title);
       } else {
+        o.taken = 0;
         o.createdAt = TS;
         const r = db.ref('tasks').push();
         await r.set(o);
@@ -939,13 +1052,217 @@ function taskModal(id) {
 }
 ACT.addTask = () => taskModal();
 ACT.editTask = d => taskModal(d.id);
+ACT.dupTask = d => { const t = Object.assign({}, S.tasks[d.id]); t.title = (t.title || '') + ' (copy)'; t.active = false; delete t.taken; delete t.createdAt; taskModal(null, t); };
+ACT.prevTask = d => {
+  const t = S.tasks[d.id];
+  const steps = String(t.steps || '').split('\n').map(x => x.trim()).filter(Boolean);
+  openModal({
+    title: 'How users see it',
+    body: (t.imageUrl ? '<img src="' + esc(thumb(t.imageUrl, 700)) + '" style="width:100%;border-radius:14px;max-height:220px;object-fit:cover">' : '') +
+      '<h3 style="margin:12px 0 4px;font-size:19px">' + esc(t.title) + (t.featured ? ' ' + badge('hot', 'red') : '') + '</h3>' +
+      '<div style="margin-bottom:10px">' + badge('+' + fmt(t.rewardMin) + (num(t.rewardMax) !== num(t.rewardMin) ? ' - ' + fmt(t.rewardMax) : '') + ' coins', 'green') + ' ' + badge(t.mode === 'proof' ? 'Proof needed' : 'Timer ' + fmt(t.durationSec) + 's', 'blue') + ' ' + (num(t.slots) ? badge(Math.max(0, num(t.slots) - num(t.taken)) + ' slots left', 'amber') : '') + '</div>' +
+      '<p class="pre">' + esc(t.description) + '</p>' +
+      (steps.length ? '<h4 style="margin:14px 0 6px">How to complete</h4>' + steps.map((s, i) => '<div class="list-item"><div class="av" style="width:26px;height:26px;font-size:12px">' + (i + 1) + '</div><div class="grow">' + esc(s) + '</div></div>').join('') : '') +
+      (t.mode === 'proof' ? '<div class="warn-box" style="margin-top:12px"><b>Proof:</b> ' + esc(t.proofHint) + '</div>' : '')
+  });
+};
 ACT.toggleTask = async (d, el) => {
-  try { await db.ref('tasks/' + d.id + '/active').set(el.checked); S.tasks[d.id].active = el.checked; logAction('task_toggle', d.id, String(el.checked)); toast(el.checked ? 'Task enabled' : 'Task disabled', 'ok'); } catch (e) { errToast(e); el.checked = !el.checked; }
+  try { await db.ref('tasks/' + d.id + '/active').set(el.checked); S.tasks[d.id].active = el.checked; logAction('task_toggle', d.id, String(el.checked)); toast(el.checked ? 'Task enabled' : 'Task disabled', 'ok'); renderTasks(); } catch (e) { errToast(e); el.checked = !el.checked; }
 };
 ACT.delTask = async d => {
   const t = S.tasks[d.id];
-  if (!(await confirmBox('Delete task "' + t.title + '"?', { danger: true, okText: 'Delete' }))) return;
+  const pend = S.pendByTask[d.id] || 0;
+  if (!(await confirmBox('Delete task "' + t.title + '"?' + (pend ? '\n\n' + pend + ' proof submissions are still waiting for review. Review them first.' : ''), { danger: true, okText: 'Delete' }))) return;
   try { await db.ref('tasks/' + d.id).remove(); logAction('task_delete', d.id, t.title); toast('Deleted', 'ok'); pages.tasks(); } catch (e) { errToast(e); }
+};
+
+/* ============================ TASK REVIEWS (PROOF SUBMISSIONS) ============================ */
+P.subs = { status: 'pending', q: '' };
+S.subSel = {};
+let subRef = null;
+function startSubsListener() {
+  if (subRef) subRef.off();
+  subRef = db.ref('taskSubmissions').orderByChild('status').equalTo('pending');
+  subRef.on('value', snap => {
+    S.pendSubs = snap.numChildren();
+    updateBadges();
+    if (S.page === 'submissions' && $('#subBody')) loadSubs();
+  }, e => errToast(e));
+}
+function subsArr() { return Object.keys(S.subs || {}).map(id => Object.assign({}, S.subs[id], { id: id })); }
+pages.submissions = async function () {
+  setContent(
+    '<div class="toolbar"><input class="input grow" placeholder="Search user, email or task" data-bind="subQ" value="' + esc(P.subs.q) + '"><button class="btn" data-act="subApproveSel">Approve selected</button></div>' +
+    '<div id="subTop"></div><div id="subBody"><div class="center-pad"><div class="spin"></div></div></div>'
+  );
+  await loadSubs();
+};
+async function loadSubs() {
+  const snap = await db.ref('taskSubmissions').orderByChild('time').limitToLast(300).once('value');
+  S.subs = snap.val() || {};
+  if (!S.tasks) { const ts = await db.ref('tasks').once('value'); S.tasks = ts.val() || {}; }
+  S.subSel = {};
+  refreshSubs();
+}
+function refreshSubs() {
+  const top = $('#subTop'), body = $('#subBody');
+  if (!top || !body) return;
+  const all = subsArr();
+  const cnt = s => all.filter(x => x.status === s).length;
+  top.innerHTML = '<div class="tabs">' + [['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected'], ['all', 'All']].map(t => '<div class="tab ' + (P.subs.status === t[0] ? 'active' : '') + '" data-act="subTab" data-s="' + t[0] + '">' + t[1] + '<span class="c">' + (t[0] === 'all' ? all.length : cnt(t[0])) + '</span></div>').join('') + '</div>';
+  const q = P.subs.q.toLowerCase();
+  let a = all.filter(x => (P.subs.status === 'all' || x.status === P.subs.status) && (!q || [x.name, x.email, x.taskTitle].some(v => String(v || '').toLowerCase().indexOf(q) !== -1)));
+  a.sort((x, y) => P.subs.status === 'pending' ? num(x.time) - num(y.time) : num(y.time) - num(x.time));
+  if (!a.length) { body.innerHTML = '<div class="card empty">Nothing to review here</div>'; return; }
+  body.innerHTML = '<div class="grid g3">' + a.slice(0, 60).map(x =>
+    '<div class="card" style="margin:0"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">' + (x.status === 'pending' ? '<input type="checkbox" data-act="subSel" data-id="' + esc(x.id) + '"> ' : '') + '<b class="grow" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(x.taskTitle || 'Task') + '</b>' + statusBadge(x.status === 'approved' ? 'paid' : x.status) + '</div>' +
+    '<a href="#" data-act="subZoom" data-id="' + esc(x.id) + '"><img src="' + esc(thumb(x.proofUrl, 500, 320)) + '" style="width:100%;height:170px;object-fit:cover;border-radius:12px;background:var(--bg)"></a>' +
+    '<div style="margin-top:8px"><b>' + esc(x.name || 'User') + '</b><div class="muted" style="font-size:12px">' + esc(x.email || '') + ' &middot; ' + fmtTime(x.time) + '</div>' + (x.note ? '<div style="margin-top:4px">' + esc(x.note) + '</div>' : '') +
+    (x.status === 'rejected' ? '<div style="color:var(--danger);font-size:12px;margin-top:4px">Reason: ' + esc(x.rejectReason || '-') + '</div>' : '') + (x.status === 'approved' ? '<div style="color:var(--primary);font-size:12px;margin-top:4px">Paid ' + fmt(x.reward) + ' coins</div>' : '') + '</div>' +
+    (x.status === 'pending' ? '<div class="actions" style="margin-top:10px"><button class="btn sm primary" data-act="subApprove" data-id="' + esc(x.id) + '">Approve</button><button class="btn sm ghost-danger" data-act="subReject" data-id="' + esc(x.id) + '">Reject</button><button class="btn sm" data-act="viewUser" data-uid="' + esc(x.uid) + '">User</button></div>' : '<div class="actions" style="margin-top:10px"><button class="btn sm" data-act="viewUser" data-uid="' + esc(x.uid) + '">User</button></div>') + '</div>'
+  ).join('') + '</div>' + (a.length > 60 ? '<div class="pager"><span>Showing 60 of ' + a.length + '. Use the search to narrow down.</span></div>' : '');
+}
+BIND.subQ = debounce(v => { P.subs.q = v; refreshSubs(); }, 200);
+ACT.subTab = d => { P.subs.status = d.s; refreshSubs(); };
+ACT.subSel = (d, el) => { if (el.checked) S.subSel[d.id] = 1; else delete S.subSel[d.id]; };
+ACT.subZoom = d => {
+  const x = S.subs[d.id];
+  openModal({ title: x.taskTitle || 'Proof', wide: true, body: '<img src="' + esc(thumb(x.proofUrl, 1100)) + '" style="width:100%;border-radius:12px"><div style="margin-top:10px"><a href="' + esc(x.proofUrl) + '" target="_blank" rel="noopener">Open original</a></div>' });
+};
+ACT.subApprove = d => {
+  const x = S.subs[d.id]; if (!x || x.status !== 'pending') return;
+  const t = S.tasks[x.taskId] || {};
+  const def = num(t.rewardMax) || num(x.reward) || 10;
+  openModal({
+    title: 'Approve proof',
+    body: '<img src="' + esc(thumb(x.proofUrl, 700)) + '" style="width:100%;max-height:260px;object-fit:contain;border-radius:12px;background:var(--bg);margin-bottom:12px"><div class="muted" style="margin-bottom:10px">' + esc(x.name) + ' &middot; ' + esc(x.taskTitle) + '</div>' + F.num('sa_reward', 'Reward to pay (coins)', def, 'Task range: ' + fmt(t.rewardMin) + ' - ' + fmt(t.rewardMax) + '. Maximum 500.', 'min="1" max="500"'),
+    footer: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="sa_go">Approve and pay</button>'
+  });
+  $('#sa_go').onclick = async () => {
+    const reward = Math.floor(num(val('sa_reward')));
+    if (reward < 1 || reward > 500) { toast('Reward must be 1 - 500', 'warn'); return; }
+    $('#sa_go').disabled = true;
+    try { const ok = await processSub(d.id, 'approved', { reward: reward }); if (ok) { closeModal(); toast('Approved and paid', 'ok'); } else { $('#sa_go').disabled = false; } } catch (e) { errToast(e); $('#sa_go').disabled = false; }
+  };
+};
+ACT.subReject = d => {
+  const x = S.subs[d.id]; if (!x || x.status !== 'pending') return;
+  openModal({
+    title: 'Reject proof',
+    body: '<div class="muted" style="margin-bottom:10px">' + esc(x.name) + ' &middot; ' + esc(x.taskTitle) + '</div>' + F.sel('sr_pre', 'Reason', 'Proof is not clear', [['Proof is not clear', 'Proof is not clear'], ['Wrong screenshot', 'Wrong screenshot'], ['Task not completed', 'Task not completed'], ['Fake or edited image', 'Fake or edited image'], ['Other', 'Other']]) + F.text('sr_note', 'Extra note (optional)', '', '') + F.sw('sr_retry', 'Let the user try again', true, 'Frees the slot and the user\'s attempt. Turn off for fake proofs.'),
+    footer: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn danger" id="sr_go">Reject</button>'
+  });
+  $('#sr_go').onclick = async () => {
+    $('#sr_go').disabled = true;
+    try { const ok = await processSub(d.id, 'rejected', { reason: val('sr_pre') + (val('sr_note') ? ' - ' + val('sr_note') : ''), retry: chk('sr_retry') }); if (ok) { closeModal(); toast('Rejected', 'ok'); } else { $('#sr_go').disabled = false; } } catch (e) { errToast(e); $('#sr_go').disabled = false; }
+  };
+};
+ACT.subApproveSel = async () => {
+  const ids = Object.keys(S.subSel);
+  if (!ids.length) { toast('Tick some pending proofs first', 'warn'); return; }
+  if (!(await confirmBox('Approve ' + ids.length + ' proofs and pay each the task\'s maximum reward?', { okText: 'Approve all' }))) return;
+  let done = 0;
+  for (const id of ids) {
+    const x = S.subs[id]; if (!x || x.status !== 'pending') continue;
+    const t = S.tasks[x.taskId] || {};
+    try { if (await processSub(id, 'approved', { reward: num(t.rewardMax) || num(x.reward) || 10 })) done++; } catch (e) { errToast(e); }
+  }
+  toast(done + ' approved', 'ok');
+  S.subSel = {};
+  refreshSubs();
+};
+async function processSub(id, status, extra) {
+  const s = S.subs[id];
+  if (!s) return false;
+  const sref = db.ref('taskSubmissions/' + id);
+  const res = await sref.child('status').transaction(cur => cur === 'pending' ? status : undefined);
+  if (!res.committed) { toast('Already reviewed', 'warn'); return false; }
+  const upd = { reviewedAt: TS, reviewedBy: (S.user.email || S.user.uid) };
+  if (status === 'approved') upd.reward = extra.reward; else { upd.rejectReason = extra.reason || ''; upd.retry = !!extra.retry; }
+  await sref.update(upd);
+  if (status === 'approved') {
+    await db.ref('users/' + s.uid + '/coin').transaction(c => num(c) + extra.reward);
+    await db.ref('history/' + s.uid).push({ type: 'task', title: 'Task: ' + (s.taskTitle || 'Task'), coins: extra.reward, time: TS });
+  } else if (extra.retry) {
+    await db.ref('tasks/' + s.taskId + '/taken').transaction(c => c == null ? undefined : Math.max(0, num(c) - 1));
+    await db.ref('userTasks/' + s.uid + '/' + s.taskId + '/total').transaction(c => c == null ? undefined : Math.max(0, num(c) - 1));
+  }
+  logAction('task_' + status, s.uid, (s.taskTitle || '') + (status === 'approved' ? ' +' + extra.reward : ' ' + (extra.reason || '')));
+  S.subs[id].status = status;
+  S.users = null;
+  refreshSubs();
+  return true;
+}
+
+/* ============================ STORAGE (CLOUDINARY) ============================ */
+pages.storage = async function () {
+  const c = await getConfig(true);
+  const cl = c.cloudinary || {};
+  const accs = cl.accounts || {};
+  const ids = Object.keys(accs);
+  setContent(
+    '<div class="warn-box"><b>How it works:</b> task pictures and users\' proof screenshots are stored on <a href="https://cloudinary.com" target="_blank" rel="noopener">Cloudinary</a> (free plan). When one account\'s free limit is finished, add another account here and press <b>Make active</b>. The app switches instantly. Old pictures keep working as long as you do not delete the old Cloudinary account.</div>' +
+    '<div class="card"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px"><h3>Cloudinary accounts</h3><p class="sub" style="margin:0">Only the cloud name and an <b>unsigned</b> upload preset are needed. Never paste your API secret anywhere.</p></div><button class="btn primary" data-act="addCloud">+ Add account</button></div></div>' +
+    (ids.length ? ids.map(id => {
+      const a = accs[id]; const act = cl.activeId === id;
+      return '<div class="card" style="' + (act ? 'border-color:var(--primary)' : '') + '"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b style="font-size:16px">' + esc(a.name || a.cloudName) + '</b> ' + (act ? badge('active', 'green') : badge('backup', 'grey')) +
+        '<div class="muted" style="margin-top:4px">Cloud name: <span class="code">' + esc(a.cloudName) + '</span> &middot; Preset: <span class="code">' + esc(a.uploadPreset) + '</span> &middot; Folder: <span class="code">' + esc(a.folder || '-') + '</span></div></div>' +
+        '<div class="actions">' + (act ? '' : '<button class="btn sm primary" data-act="useCloud" data-id="' + esc(id) + '">Make active</button>') + '<button class="btn sm" data-act="editCloud" data-id="' + esc(id) + '">Edit</button>' + (act ? '' : '<button class="btn sm ghost-danger" data-act="delCloud" data-id="' + esc(id) + '">Delete</button>') + '</div></div></div>';
+    }).join('') : '<div class="card empty">No account yet. Add your first Cloudinary account.</div>') +
+    '<div class="card"><h3>Test the active account</h3><p class="sub">Upload any picture to check that everything works.</p><input type="file" id="st_file" accept="image/*" class="input" style="margin-bottom:10px"><button class="btn primary" data-act="testCloud">Upload test picture</button><div id="st_result" style="margin-top:12px"></div></div>' +
+    '<div class="card"><h3>How to create a Cloudinary account (free)</h3><ol style="line-height:1.9;margin:6px 0 0 18px;padding:0">' +
+      '<li>Sign up at cloudinary.com. Your <b>Cloud name</b> is shown on the dashboard.</li>' +
+      '<li>Open <b>Settings &rarr; Upload &rarr; Upload presets &rarr; Add upload preset</b>.</li>' +
+      '<li>Set <b>Signing mode = Unsigned</b>. Under allowed formats choose jpg, png, webp. Save and copy the preset name.</li>' +
+      '<li>Come back here, press <b>+ Add account</b> and paste the cloud name and preset name.</li>' +
+      '<li>When the free limit ends, repeat this with a new account and press <b>Make active</b>.</li></ol></div>'
+  );
+};
+function cloudModal(id) {
+  const c = (S.config && S.config.cloudinary) || {};
+  const a = id ? c.accounts[id] : { name: '', cloudName: '', uploadPreset: '', folder: 'cashmint' };
+  openModal({
+    title: id ? 'Edit account' : 'Add Cloudinary account',
+    body: F.text('cd_name', 'Account name (for you)', a.name, '', 'e.g. Main account') + F.text('cd_cloud', 'Cloud name', a.cloudName, 'Shown on your Cloudinary dashboard') + F.text('cd_preset', 'Unsigned upload preset', a.uploadPreset, 'Settings > Upload > Upload presets') + F.text('cd_folder', 'Folder', a.folder, 'Pictures are saved inside this folder. Letters, numbers, - _ /'),
+    footer: '<button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" id="cd_go">Save</button>'
+  });
+  $('#cd_go').onclick = async () => {
+    const o = { name: val('cd_name') || val('cd_cloud'), cloudName: val('cd_cloud'), uploadPreset: val('cd_preset'), folder: val('cd_folder') };
+    if (!/^[A-Za-z0-9_-]+$/.test(o.cloudName)) { toast('Cloud name looks wrong (letters, numbers, - _ only)', 'warn'); return; }
+    if (!/^[A-Za-z0-9_.-]+$/.test(o.uploadPreset)) { toast('Upload preset looks wrong', 'warn'); return; }
+    if (o.folder && !/^[A-Za-z0-9_\/-]+$/.test(o.folder)) { toast('Folder may contain only letters, numbers, - _ /', 'warn'); return; }
+    try {
+      const cur = (S.config && S.config.cloudinary) || {};
+      const key = id || db.ref('config/cloudinary/accounts').push().key;
+      const upd = {};
+      upd['accounts/' + key] = o;
+      if (!cur.activeId || cur.activeId === key) { upd.activeId = key; upd.active = o; }
+      await db.ref('config/cloudinary').update(upd);
+      S.config = null;
+      logAction('cloud_' + (id ? 'edit' : 'add'), key, o.cloudName);
+      toast('Saved', 'ok'); closeModal(); pages.storage();
+    } catch (e) { errToast(e); }
+  };
+}
+ACT.addCloud = () => cloudModal();
+ACT.editCloud = d => cloudModal(d.id);
+ACT.useCloud = async d => {
+  const a = S.config.cloudinary.accounts[d.id];
+  if (!(await confirmBox('Switch all new uploads (task pictures and user proofs) to "' + (a.name || a.cloudName) + '"?', { okText: 'Switch' }))) return;
+  try { await db.ref('config/cloudinary').update({ activeId: d.id, active: a }); S.config = null; logAction('cloud_switch', d.id, a.cloudName); toast('Switched. The app uses the new account now.', 'ok'); pages.storage(); } catch (e) { errToast(e); }
+};
+ACT.delCloud = async d => {
+  const a = S.config.cloudinary.accounts[d.id];
+  if (!(await confirmBox('Delete the saved account "' + (a.name || a.cloudName) + '"? (Your Cloudinary account itself is not deleted.)', { danger: true, okText: 'Delete' }))) return;
+  try { await db.ref('config/cloudinary/accounts/' + d.id).remove(); S.config = null; logAction('cloud_delete', d.id, a.cloudName); toast('Deleted', 'ok'); pages.storage(); } catch (e) { errToast(e); }
+};
+ACT.testCloud = async () => {
+  const f = $('#st_file').files[0];
+  const out = $('#st_result');
+  if (!f) { toast('Choose a picture first', 'warn'); return; }
+  out.innerHTML = '<div class="spin"></div>';
+  try { const url = await uploadImage(f, 'test'); out.innerHTML = '<div class="badge b-green">Upload works</div><div style="margin:8px 0"><img src="' + esc(thumb(url, 400)) + '" style="max-width:220px;border-radius:12px"></div><div class="code" style="word-break:break-all">' + esc(url) + '</div>'; }
+  catch (e) { out.innerHTML = '<div class="danger-box">' + esc(e.message) + '</div>'; }
 };
 
 /* ============================ PROMO CODES ============================ */
