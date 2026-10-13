@@ -945,13 +945,43 @@ pages.tasks = async function () {
       '<button class="btn primary" data-act="addTask">+ Add task</button>' +
     '</div>' +
     '<div class="warn-box"><b>Play Store / AdMob rules:</b> never reward clicks or installs of AdMob ads. "Visit Website" and "App Install" tasks must use your own links or approved partners.</div>' +
-    '<div id="taskBody"></div>'
+    '<div id="taskFix"></div><div id="taskBody"></div>'
   );
   renderTasks();
+};
+const TASK_REQUIRED = ['mode', 'category', 'taken', 'slots', 'expiresAt', 'dailyLimit', 'maxCompletions', 'durationSec', 'featured'];
+function needsRepair(t) { return TASK_REQUIRED.some(k => t[k] === undefined || t[k] === null); }
+function repairPatch(t) {
+  const p = {};
+  const cats = TASK_CATS.map(c => c[0]);
+  if (t.mode == null) p.mode = 'timer';
+  if (t.category == null) p.category = (t.type && cats.indexOf(t.type) !== -1) ? t.type : 'other';
+  if (t.taken == null) p.taken = 0;
+  if (t.slots == null) p.slots = 0;
+  if (t.expiresAt == null) p.expiresAt = 0;
+  if (t.dailyLimit == null) p.dailyLimit = 0;
+  if (t.maxCompletions == null) p.maxCompletions = 0;
+  if (t.durationSec == null) p.durationSec = ((t.mode || p.mode) === 'proof') ? 0 : 30;
+  if (t.featured == null) p.featured = false;
+  if (!t.imageUrl && t.iconUrl) p.imageUrl = t.iconUrl;
+  return p;
+}
+ACT.repairTasks = async () => {
+  const broken = tasksArr().filter(needsRepair);
+  if (!broken.length) { toast('Nothing to fix', 'ok'); return; }
+  if (!(await confirmBox('Fix ' + broken.length + ' task(s) made with the old panel? Missing fields (mode, category, taken, slots, expiry...) are filled with safe defaults. Your titles, rewards and links are not changed.', { okText: 'Fix now' }))) return;
+  const upd = {};
+  broken.forEach(t => { const p = repairPatch(t); Object.keys(p).forEach(k => { upd[t.id + '/' + k] = p[k]; }); });
+  try { await db.ref('tasks').update(upd); logAction('task_repair', '', broken.length + ' tasks'); toast('Fixed ' + broken.length + ' task(s)', 'ok'); pages.tasks(); } catch (e) { errToast(e); }
 };
 function renderTasks() {
   const body = $('#taskBody');
   if (!body) return;
+  const fixBox = $('#taskFix');
+  if (fixBox) {
+    const nb = tasksArr().filter(needsRepair).length;
+    fixBox.innerHTML = nb ? '<div class="danger-box" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>' + nb + ' task(s) were made with an older version</b> and are missing some fields. Users may get "Permission denied" when claiming them.</div><button class="btn primary" data-act="repairTasks">Fix old tasks</button></div>' : '';
+  }
   const q = P.tasks.q.toLowerCase();
   const a = tasksArr().filter(t => (P.tasks.cat === 'all' || t.category === P.tasks.cat) && (P.tasks.status === 'all' || taskState(t) === P.tasks.status) && (!q || String(t.title || '').toLowerCase().indexOf(q) !== -1));
   if (!a.length) { body.innerHTML = '<div class="card empty">No tasks here. Click "+ Add task".</div>'; return; }
@@ -962,7 +992,7 @@ function renderTasks() {
       const slots = num(t.slots);
       const pct = slots > 0 ? Math.min(100, Math.round(num(t.taken) / slots * 100)) : 0;
       return '<tr><td><div class="u-cell">' + (t.imageUrl ? '<img src="' + esc(thumb(t.imageUrl, 120, 120)) + '" style="width:46px;height:46px;border-radius:10px;object-fit:cover;flex:none">' : '<div class="av" style="border-radius:10px;width:46px;height:46px">' + esc(initial(t.title)) + '</div>') +
-        '<div><div class="u-name">' + esc(t.title) + (t.featured ? ' ' + badge('hot', 'red') : '') + '</div><div class="u-mail">' + esc(catName(t.category)) + ' &middot; ' + (t.mode === 'proof' ? 'Proof' : 'Timer ' + fmt(t.durationSec) + 's') + '</div></div></div></td>' +
+        '<div><div class="u-name">' + esc(t.title) + (t.featured ? ' ' + badge('hot', 'red') : '') + (needsRepair(t) ? ' ' + badge('needs fix', 'amber') : '') + '</div><div class="u-mail">' + esc(catName(t.category || t.type)) + ' &middot; ' + (t.mode === 'proof' ? 'Proof' : 'Timer ' + fmt(t.durationSec) + 's') + '</div></div></div></td>' +
         '<td><b>' + fmt(t.rewardMin) + (num(t.rewardMax) !== num(t.rewardMin) ? ' - ' + fmt(t.rewardMax) : '') + '</b> coins</td>' +
         '<td>' + (slots > 0 ? '<div>' + fmt(t.taken) + ' / ' + fmt(slots) + (st === 'full' ? ' ' + badge('full', 'amber') : '') + '</div><div style="height:6px;background:var(--bg);border-radius:4px;margin-top:4px;min-width:90px"><div style="height:6px;width:' + pct + '%;background:var(--primary);border-radius:4px"></div></div>' : fmt(t.taken) + ' done') + '</td>' +
         '<td>' + (num(t.dailyLimit) ? fmt(t.dailyLimit) + '/day' : 'no daily limit') + '<div class="u-mail">' + (num(t.maxCompletions) ? 'max ' + fmt(t.maxCompletions) + ' per user' : 'repeatable') + '</div></td>' +
@@ -1035,6 +1065,7 @@ function taskModal(id, src) {
     $('#tk_go').disabled = true;
     try {
       if (t) {
+        if (t.taken == null) o.taken = 0;
         await db.ref('tasks/' + id).update(o);
         logAction('task_edit', id, o.title);
       } else {
